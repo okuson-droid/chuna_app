@@ -643,7 +643,7 @@ if st.button("① 計算する"):
 # =========================
 st.header("② 音骸の強化続行判定")
 
-st.caption("①の計算結果を元に判定します")
+st.caption("①の計算結果を元に判定")
 
 times = st.number_input(
     "強化回数（サブステが開いた数）",
@@ -676,7 +676,7 @@ if st.button("② 判定する"):
     st.write(result[1])
     
 st.header("③強化続行サブステ一覧")
-st.caption("①の計算結果をもとに表示します")
+st.caption("①の計算結果をもとに表示")
 
 times = st.number_input(
     "強化回数（開放サブステ数）",
@@ -692,7 +692,7 @@ if st.button("一覧を表示"):
 
     ave_chuna = st.session_state["ave_chuna"]
 
-    with st.spinner("計算中…（少し時間がかかります）"):
+    with st.spinner("計算中…"):
         results = judge_continue_all(score, times, ave_chuna)
 
     if len(results) == 0:
