@@ -570,7 +570,7 @@ def judge_continue_all(score,times,ave_chuna):
 def highlight_positive(val):
     try:
         if float(val) > 0:
-            return "font-weight: bold; color: #d62728;"
+            return "font-weight: bold;"
     except:
         pass
     return ""       
@@ -701,7 +701,12 @@ if st.button("一覧を表示"):
             rows.append(row)
 
         df = pd.DataFrame(rows)
-        styled_df = df.style.applymap(highlight_positive)
+        df_display = df.copy()
+        for col in df_display.columns:
+            if pd.api.types.is_numeric_dtype(df_display[col]):
+                df_display[col] = df_display[col].round(2)
+
+        styled_df = df_display.style.applymap(highlight_positive)
         st.dataframe(styled_df, use_container_width=True)
          
 
