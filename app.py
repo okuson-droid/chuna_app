@@ -483,28 +483,47 @@ def judge_continue_all(score,times,ave_chuna):
         return    
     
     return "error"
-
                     
+# =========================
+# タイトル
+# =========================
 st.title("音骸厳選用計算ツール")
 
-st.header("➀目標スコア以上の音骸を1体作るのに必要な素材の消費量を計算")
+# =========================
+# キャッシュ付き計算
+# =========================
+@st.cache_data
+def cached_cal_min_chuna(score):
+    return cal_min_chuna(score)
+
+# =========================
+# 共通パラメータ入力
+# =========================
+st.header("基本設定")
 st.write("スコア計算に必要な各サブステータスの係数を入力")
 st.caption("一般的なアタッカーは○○ダメージアップの係数は0.7に設定すれば、それほど支障はない")
 st.caption("共鳴効率はサブステータスで30程度盛りたい場合は1、20程度盛りたい場合は0.6と設定することを推奨")
 st.caption("消滅漂泊者など2種類のダメアップが有効なキャラ以外は、○○ダメージアップ2のところは0のままでOK")
 st.caption("現在、HP参照キャラであるカルテジアは非対応")
 
-coe = [2,1,1,0,0,0,0.1]
+coe = [2, 1, 1, 0, 0, 0, 0.1]
 
-coe[3] = st.number_input("○○ダメージアップ1", value=0.0,step=0.1)
-coe[4] = st.number_input("○○ダメージアップ2", value=0.0,step=0.1)
-coe[5] = st.number_input("共鳴効率", value=0.0,step=0.1)
+coe[3] = st.number_input("○○ダメージアップ1", value=0.0, step=0.1)
+coe[4] = st.number_input("○○ダメージアップ2", value=0.0, step=0.1)
+coe[5] = st.number_input("共鳴効率", value=0.0, step=0.1)
 
-score = st.number_input("目標スコア", min_value=0, step=1)
+score = st.number_input("目標スコア", min_value=1, step=1)
 
-if st.button("計算する"):
-    chuna = cal_min_chuna(score)
-    n = list(cal_ave_chuna0(score, chuna))
+# =========================
+# ① 必要素材計算
+# =========================
+st.header("① 目標スコア以上の音骸を1体作るための素材消費量")
+
+if st.button("① 計算する"):
+    with st.spinner("計算中..."):
+        chuna = cached_cal_min_chuna(score)
+        n = list(cal_ave_chuna0(score, chuna))
+
     n[0] = int(n[0])
     n[2] = int(n[2] / 5000)
 
@@ -513,21 +532,29 @@ if st.button("計算する"):
     else:
         n.append("無限大")
 
+    # セッションに保存（②で使う）
+    st.session_state["ave_chuna"] = n[0]
+
     st.subheader("計算結果")
-    st.write(f"チュナ消費量: {n[0]}")
-    st.write(f"レコード消費量: {n[2]}")
-    st.write(f"素体消費量: {n[3]}")
+    st.metric("チュナ消費量", n[0])
+    st.metric("レコード消費量", n[2])
+    st.metric("素体消費量", n[3])
 
-st.header("➁音骸の強化続行判定")
+# =========================
+# ② 強化続行判定
+# =========================
+st.header("② 音骸の強化続行判定")
 
-substatus=[0,0,0,0,0,0,0]
+st.caption("①の計算結果を元に判定します")
 
-st.write("音骸の強化回数と現時点でのサブステータスを入力")
-st.caption("現時点での音骸についていないサブステの数値は0のままでOK")
-st.caption("音骸の強化回数＝サブステが開けられている数（0～5）")
+times = st.number_input(
+    "強化回数（サブステが開いた数）",
+    min_value=0,
+    max_value=4,
+    step=1
+)
 
-times=st.number_input("強化回数",min_value=0,max_value=5,step=1)
-
+substatus = [0.0] * 7
 substatus[0] = st.number_input("クリティカル", value=0.0)
 substatus[1] = st.number_input("クリティカルダメージ", value=0.0)
 substatus[2] = st.number_input("攻撃力％", value=0.0)
@@ -536,12 +563,19 @@ substatus[4] = st.number_input("○○ダメージアップ2", value=0.0)
 substatus[5] = st.number_input("共鳴効率", value=0.0)
 substatus[6] = st.number_input("攻撃力実数", value=0.0)
 
-if st.button("計算する"):
-    l=list(judge_continue(score,times,substatus,n[0]))
-    st.subheader("計算結果")
-    st.write(f"チュナ消費量: {l[0]}")
-    st.write(f"{l[1]}")
-    
+if st.button("② 判定する"):
+    if "ave_chuna" not in st.session_state:
+        st.error("先に①の計算を実行してください")
+        st.stop()
+
+    ave_chuna = st.session_state["ave_chuna"]
+
+    with st.spinner("判定中..."):
+        result = list(judge_continue(score, times, substatus, ave_chuna))
+
+    st.subheader("判定結果")
+    st.metric("想定チュナ消費量", result[0])
+    st.write(result[1])
     
 
 
