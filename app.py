@@ -427,18 +427,6 @@ if st.button("② 判定する"):
     st.metric("想定チュナ消費量", result[0])
     st.write(result[1])
     
-st.header("③ 強化ルート可視化（ツリー）")
-
-max_depth = st.slider(
-    "表示する強化回数（重くなるので2まで推奨）",
-    min_value=1,
-    max_value=3,
-    value=2
-)
-
-import streamlit as st
-import pandas as pd
-
 st.header("強化続行サブステ一覧（特定強化回数）")
 
 times = st.number_input(
