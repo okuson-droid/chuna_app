@@ -713,7 +713,7 @@ if st.button("一覧を表示"):
 
         styled_df = (
             df.style
-                .format("{:.2f}")          
+                .format("{:.1f}")          
                 .applymap(highlight_positive)
         )
         st.dataframe(styled_df, use_container_width=True)
