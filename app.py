@@ -1,6 +1,8 @@
 import streamlit as st
 import numpy as np
+import pandas as pd
 import copy
+import itertools
 
 #チュナ最小になる戦略（新）(レコードの消費量も計算)
 
@@ -266,293 +268,72 @@ def cal_ave_chuna(score,times,substatus,ave_chuna):
     else:
         print("error")
 
-def judge_continue_all(score,times,ave_chuna):
-    print('スコア:{} 強化回数:{} 目安チュナ:{}'.format(score,times,ave_chuna))
-    a=1
-    subst_list0=copy.deepcopy(subst_list)
-    
-    for i in range(7):
-        subst_list0[i].insert(0,0)
-    memory=np.zeros((1,7))+8
-    
-    substatus=[0]*7
-    chuna=cal_ave_chuna(score,times,substatus,ave_chuna)
-    
-    if chuna[1]>0 and chuna[0]<=ave_chuna*a:
-        print('サブステ:{} 消費チュナ:{} スコア合計:{}'.format(substatus,chuna[0],cal_score_now(substatus)))
-        return
-        
-
-    for i in range(7):
-        if coe[i]==0:
-            continue
-        for j in range(8):
-            if i==6 and j>=4:
-                break
-            substatus=[0]*7
-            substatus[i]=subst_list0[i][j+1]
-            chuna=cal_ave_chuna(score,times,substatus,ave_chuna)
-
-            if chuna[1]==0:
-                continue
-
-            if chuna[0]<=ave_chuna*a:
-                print('サブステ:{} 消費チュナ:{} スコア合計:{}'.format(substatus,chuna[0],cal_score_now(substatus)))
-                memory=np.append(memory,[[0]*7],axis=0)
-                memory[-1,i]=j+1
-                break
-            
-    if times==1:
-        return
-    
-    for i in range(6):
-        if coe[i]==0:#有効なサブステでない場合パス
-            continue
-
-        for j in range(8):
-            subst=np.zeros(7)
-            subst[i]=j+1
-            if np.count_nonzero(np.all(memory<=subst,axis=1))>0:#memory以上の強さのリストを除外
-                break
-
-            for k in range(i+1,7):#有効なサブステでない場合パス
-                if coe[k]==0:
-                    continue
-                
-                for l in range(8):
-                    if k==6 and l>=4:#実数の5番目以降を除外
-                        break
-                    
-                    subst[k]=l+1
-                    
-                    if np.count_nonzero(np.all(memory<=subst,axis=1))>0:#memory以上の強さのリストを除外
-                        subst[k]=0
-                        break
-                    
-                    subst[k]=0
-                    
-                    substatus=[0]*7
-                    substatus[i]=subst_list0[i][j+1]
-                    substatus[k]=subst_list0[k][l+1]
-                    chuna=cal_ave_chuna(score,times,substatus,ave_chuna)
-                    if chuna[1]==0:
-                        continue
-                    
-                    if chuna[0]<=ave_chuna*a:
-                        print('サブステ:{} 消費チュナ:{} スコア合計:{}'.format(substatus,chuna[0],cal_score_now(substatus)))
-                        memory=np.append(memory,[[0]*7],axis=0)
-                        memory[-1,i]=j+1
-                        memory[-1,k]=l+1
-                        break
-    
-    if times==2:
-        return
-    
-    for i in range(5):
-        if coe[i]==0:#有効なサブステでない場合パス
-            continue
-
-        for j in range(8):
-            subst=np.zeros(7)
-            subst[i]=j+1
-            if np.count_nonzero(np.all(memory<=subst,axis=1))>0:#memory以上の強さのリストを除外
-                break
-
-            for k in range(i+1,6):#有効なサブステでない場合パス
-                if coe[k]==0:
-                    continue
-                
-                for l in range(8):
-                    if k==6 and l>=4:#実数の5番目以降を除外
-                        break
-                    
-                    subst[k]=l+1
-                    
-                    if np.count_nonzero(np.all(memory<=subst,axis=1))>0:#memory以上の強さのリストを除外
-                        subst[k]=0
-                        break
-                    
-                    for m in range(k+1,7):
-                        if coe[m]==0:
-                            continue
-                        
-                        for n in range(8):
-                            if m==6 and n>=4:
-                                break
-                            
-                            subst[m]=n+1
-                            
-                            if np.count_nonzero(np.all(memory<=subst,axis=1))>0:
-                                subst[m]=0
-                                break
-                            
-                            subst[m]=0
-                            
-                            substatus=[0]*7
-                            substatus[i]=subst_list0[i][j+1]
-                            substatus[k]=subst_list0[k][l+1]
-                            substatus[m]=subst_list0[m][n+1]
-                            chuna=cal_ave_chuna(score,times,substatus,ave_chuna)
-                            if chuna[1]==0:
-                                continue
-                            
-                            if chuna[0]<=ave_chuna*a:
-                                print('サブステ:{} 消費チュナ:{} スコア合計:{}'.format(substatus,chuna[0],cal_score_now(substatus)))
-                                memory=np.append(memory,[[0]*7],axis=0)
-                                memory[-1,i]=j+1
-                                memory[-1,k]=l+1
-                                memory[-1,m]=n+1
-                                break
-                    
-                    subst[k]=0
-                    
-    if times==3:
-        return
-    
-    for i in range(4):
-        if coe[i]==0:#有効なサブステでない場合パス
-            continue
-
-        for j in range(8):
-            subst=np.zeros(7)
-            subst[i]=j+1
-            if np.count_nonzero(np.all(memory<=subst,axis=1))>0:#memory以上の強さのリストを除外
-                break
-
-            for k in range(i+1,5):#有効なサブステでない場合パス
-                if coe[k]==0:
-                    continue
-                
-                for l in range(8):
-                    subst[k]=l+1
-                    
-                    if np.count_nonzero(np.all(memory<=subst,axis=1))>0:#memory以上の強さのリストを除外
-                        subst[k]=0
-                        break
-                    
-                    for m in range(k+1,6):
-                        if coe[m]==0:
-                            continue
-                        
-                        for n in range(8):
-                            subst[m]=n+1
-                            
-                            if np.count_nonzero(np.all(memory<=subst,axis=1))>0:
-                                subst[m]=0
-                                break
-                            
-                            for o in range(m+1,7):
-                                if coe[o]==0:
-                                    continue
-                                
-                                for p in range(8):
-                                    if o==6 and p>=4:
-                                        break
-                                    
-                                    subst[o]=p+1
-                                    
-                                    if np.count_nonzero(np.all(memory<=subst,axis=1))>0:
-                                        subst[o]=0
-                                        break
-                                    
-                                    subst[o]=0
-                            
-                                    substatus=[0]*7
-                                    substatus[i]=subst_list0[i][j+1]
-                                    substatus[k]=subst_list0[k][l+1]
-                                    substatus[m]=subst_list0[m][n+1]
-                                    substatus[o]=subst_list0[o][p+1]
-                                    chuna=cal_ave_chuna(score,times,substatus,ave_chuna)
-                                    if chuna[1]==0:
-                                        continue
-                            
-                                    if chuna[0]<=ave_chuna*a:
-                                        print('サブステ:{} 消費チュナ:{} スコア合計:{}'.format(substatus,chuna[0],cal_score_now(substatus)))
-                                        memory=np.append(memory,[[0]*7],axis=0)
-                                        memory[-1,i]=j+1
-                                        memory[-1,k]=l+1
-                                        memory[-1,m]=n+1
-                                        memory[-1,o]=p+1
-                                        break
-                                    
-                            subst[m]=0
-                                    
-                    subst[k]=0
-                    
-    if times==4:
-        return    
-    
-    return "error"
-
-from graphviz import Digraph
-
-SUB_NAMES = [
-    "クリ率", "クリダメ", "攻撃％",
-    "ダメUP1", "ダメUP2", "共鳴効率", "攻撃実数"
-]
-
-SUB_VALUES = {
-    0: [6.3, 6.9, 7.5, 8.1],
-    1: [12.6, 13.8, 15.0],
-    2: [6.4, 7.1, 7.9],
-    3: [6.4, 7.1],
-    4: [6.4],
-    5: [6.8, 7.6],
-    6: [30, 40]
-}
-def judge_color(judge):
-    if judge == "強化推奨":
-        return "green"
-    elif judge == "続行可能":
-        return "gold"
-    else:
-        return "red"
-
-def build_tree(score, ave_chuna, max_depth=2):
-    dot = Digraph()
-    dot.attr(rankdir="LR")
-
-    root_id = "root"
-    dot.node(root_id, "初期状態", shape="box")
-
-    node_counter = 0
-
-    def expand(node_id, substatus, times):
-        nonlocal node_counter
-        if times >= max_depth:
-            return
-
+def is_dominated(vec, memory):
+    """
+    有効サブステ（coe > 0）について、
+    すでに列挙済みのものよりすべて劣っているなら除外
+    """
+    for m in memory:
+        dominated = True
         for i in range(7):
-            if substatus[i] > 0:
+            if coe[i] == 0:
+                continue
+            if m[i] > vec[i]:
+                dominated = False
+                break
+        if dominated:
+            return True
+    return False
+
+def enumerate_valid_substats(score, times, ave_chuna):
+    results = []
+    memory = []
+
+    subst_list0 = copy.deepcopy(subst_list)
+    for i in range(7):
+        subst_list0[i].insert(0, 0)
+
+    for comb in itertools.combinations(range(7), times):
+        ranges = []
+        for i in comb:
+            if i == 6:  # 攻撃力実数
+                ranges.append(range(1, 5))
+            else:
+                ranges.append(range(1, 9))
+
+        for levels in itertools.product(*ranges):
+            vec = np.zeros(7, dtype=int)
+            for i, lv in zip(comb, levels):
+                vec[i] = lv
+
+            if is_dominated(vec, memory):
                 continue
 
-            for val in SUB_VALUES.get(i, []):
-                new_sub = substatus.copy()
-                new_sub[i] = val
+            substatus = [subst_list0[i][vec[i]] for i in range(7)]
+            chuna = cal_ave_chuna(score, times, substatus, ave_chuna)
 
-                chuna, judge = judge_continue(
-                    score, times + 1, new_sub, ave_chuna
-                )
+            if chuna[1] == 0:
+                continue
 
-                node_counter += 1
-                child_id = f"n{node_counter}"
+            if chuna[0] <= ave_chuna:
+                memory.append(vec)
+                results.append({
+                    "クリ率": substatus[0],
+                    "クリダメ": substatus[1],
+                    "攻撃%": substatus[2],
+                    "ダメUP1": substatus[3],
+                    "ダメUP2": substatus[4],
+                    "共鳴効率": substatus[5],
+                    "攻撃実数": substatus[6],
+                    "有効サブ数": sum(1 for i in range(7) if substatus[i] > 0 and coe[i] > 0),
+                    "合計スコア": round(cal_score_now(substatus), 2),
+                    "期待チュナ": round(chuna[0], 2),
+                })
 
-                label = f"{SUB_NAMES[i]} +{val}\n{judge}\nチュナ:{chuna}"
-                dot.node(
-                    child_id,
-                    label,
-                    style="filled",
-                    fillcolor=judge_color(judge)
-                )
+    return results
 
-                dot.edge(node_id, child_id)
 
-                if judge != "強化非推奨":
-                    expand(child_id, new_sub, times + 1)
-
-    expand(root_id, [0]*7, 0)
-    return dot
-                    
+       
 # =========================
 # タイトル
 # =========================
@@ -655,20 +436,35 @@ max_depth = st.slider(
     value=2
 )
 
-if st.button("③ ツリーを生成"):
-    if "ave_chuna" not in st.session_state:
-        st.error("先に①の計算をしてください")
-        st.stop()
+import streamlit as st
+import pandas as pd
 
-    with st.spinner("ツリー生成中..."):
-        dot = build_tree(
-            score,
-            st.session_state["ave_chuna"],
-            max_depth=max_depth
+st.header("強化続行サブステ一覧（特定強化回数）")
+
+times = st.number_input(
+    "強化回数（開放サブステ数）",
+    min_value=0,
+    max_value=5,
+    step=1
+)
+
+if st.button("一覧を表示"):
+    with st.spinner("計算中…（少し時間がかかります）"):
+        ave_chuna = cal_min_chuna(score)
+        data = enumerate_valid_substats(score, times, ave_chuna)
+
+    if len(data) == 0:
+        st.warning("条件を満たすサブステ構成がありません")
+    else:
+        df = pd.DataFrame(data)
+
+        st.subheader(f"続行推奨サブステ一覧（{len(df)} 件）")
+
+        st.dataframe(
+            df.sort_values("期待チュナ"),
+            use_container_width=True,
+            height=600
         )
-
-    st.graphviz_chart(dot)
-
 
 
 
