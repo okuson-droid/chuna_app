@@ -268,24 +268,7 @@ def cal_ave_chuna(score,times,substatus,ave_chuna):
     else:
         print("error")
 
-def is_dominated(vec, memory):
-    """
-    有効サブステ（coe > 0）について、
-    すでに列挙済みのものよりすべて劣っているなら除外
-    """
-    for m in memory:
-        dominated = True
-        for i in range(7):
-            if coe[i] == 0:
-                continue
-            if m[i] > vec[i]:
-                dominated = False
-                break
-        if dominated:
-            return True
-    return False
 
-def enumerate_valid_substats(score, times, ave_chuna):
     results = []
     memory = []
 
@@ -332,7 +315,247 @@ def enumerate_valid_substats(score, times, ave_chuna):
 
     return results
 
+def judge_continue_all(score,times,ave_chuna):
+    results = []
+    a=1
+    subst_list0=copy.deepcopy(subst_list)
+    
+    for i in range(7):
+        subst_list0[i].insert(0,0)
+    memory=np.zeros((1,7))+8
+    
+    substatus=[0]*7
+    chuna=cal_ave_chuna(score,times,substatus,ave_chuna)
+    
+    if chuna[1]>0 and chuna[0]<=ave_chuna*a:
+        results.append({
+            "substatus": substatus.copy(),
+            "chuna": chuna[0],
+            "score": cal_score_now(substatus)
+        })
+        return results
+        
 
+    for i in range(7):
+        if coe[i]==0:
+            continue
+        for j in range(8):
+            if i==6 and j>=4:
+                break
+            substatus=[0]*7
+            substatus[i]=subst_list0[i][j+1]
+            chuna=cal_ave_chuna(score,times,substatus,ave_chuna)
+
+            if chuna[1]==0:
+                continue
+
+            if chuna[0]<=ave_chuna*a:
+                results.append({
+                    "substatus": substatus.copy(),
+                    "chuna": chuna[0],
+                    "score": cal_score_now(substatus)
+                })
+
+                memory=np.append(memory,[[0]*7],axis=0)
+                memory[-1,i]=j+1
+                break
+            
+    if times==1:
+        return results
+    
+    for i in range(6):
+        if coe[i]==0:#有効なサブステでない場合パス
+            continue
+
+        for j in range(8):
+            subst=np.zeros(7)
+            subst[i]=j+1
+            if np.count_nonzero(np.all(memory<=subst,axis=1))>0:#memory以上の強さのリストを除外
+                break
+
+            for k in range(i+1,7):#有効なサブステでない場合パス
+                if coe[k]==0:
+                    continue
+                
+                for l in range(8):
+                    if k==6 and l>=4:#実数の5番目以降を除外
+                        break
+                    
+                    subst[k]=l+1
+                    
+                    if np.count_nonzero(np.all(memory<=subst,axis=1))>0:#memory以上の強さのリストを除外
+                        subst[k]=0
+                        break
+                    
+                    subst[k]=0
+                    
+                    substatus=[0]*7
+                    substatus[i]=subst_list0[i][j+1]
+                    substatus[k]=subst_list0[k][l+1]
+                    chuna=cal_ave_chuna(score,times,substatus,ave_chuna)
+                    if chuna[1]==0:
+                        continue
+                    
+                    if chuna[0]<=ave_chuna*a:
+                        results.append({
+                            "substatus": substatus.copy(),
+                            "chuna": chuna[0],
+                            "score": cal_score_now(substatus)
+                        })
+
+                        memory=np.append(memory,[[0]*7],axis=0)
+                        memory[-1,i]=j+1
+                        memory[-1,k]=l+1
+                        break
+    
+    if times==2:
+        return results
+    
+    for i in range(5):
+        if coe[i]==0:#有効なサブステでない場合パス
+            continue
+
+        for j in range(8):
+            subst=np.zeros(7)
+            subst[i]=j+1
+            if np.count_nonzero(np.all(memory<=subst,axis=1))>0:#memory以上の強さのリストを除外
+                break
+
+            for k in range(i+1,6):#有効なサブステでない場合パス
+                if coe[k]==0:
+                    continue
+                
+                for l in range(8):
+                    if k==6 and l>=4:#実数の5番目以降を除外
+                        break
+                    
+                    subst[k]=l+1
+                    
+                    if np.count_nonzero(np.all(memory<=subst,axis=1))>0:#memory以上の強さのリストを除外
+                        subst[k]=0
+                        break
+                    
+                    for m in range(k+1,7):
+                        if coe[m]==0:
+                            continue
+                        
+                        for n in range(8):
+                            if m==6 and n>=4:
+                                break
+                            
+                            subst[m]=n+1
+                            
+                            if np.count_nonzero(np.all(memory<=subst,axis=1))>0:
+                                subst[m]=0
+                                break
+                            
+                            subst[m]=0
+                            
+                            substatus=[0]*7
+                            substatus[i]=subst_list0[i][j+1]
+                            substatus[k]=subst_list0[k][l+1]
+                            substatus[m]=subst_list0[m][n+1]
+                            chuna=cal_ave_chuna(score,times,substatus,ave_chuna)
+                            if chuna[1]==0:
+                                continue
+                            
+                            if chuna[0]<=ave_chuna*a:
+                                results.append({
+                                    "substatus": substatus.copy(),
+                                    "chuna": chuna[0],
+                                    "score": cal_score_now(substatus)
+                                })
+
+                                memory=np.append(memory,[[0]*7],axis=0)
+                                memory[-1,i]=j+1
+                                memory[-1,k]=l+1
+                                memory[-1,m]=n+1
+                                break
+                    
+                    subst[k]=0
+                    
+    if times==3:
+        return results
+    
+    for i in range(4):
+        if coe[i]==0:#有効なサブステでない場合パス
+            continue
+
+        for j in range(8):
+            subst=np.zeros(7)
+            subst[i]=j+1
+            if np.count_nonzero(np.all(memory<=subst,axis=1))>0:#memory以上の強さのリストを除外
+                break
+
+            for k in range(i+1,5):#有効なサブステでない場合パス
+                if coe[k]==0:
+                    continue
+                
+                for l in range(8):
+                    subst[k]=l+1
+                    
+                    if np.count_nonzero(np.all(memory<=subst,axis=1))>0:#memory以上の強さのリストを除外
+                        subst[k]=0
+                        break
+                    
+                    for m in range(k+1,6):
+                        if coe[m]==0:
+                            continue
+                        
+                        for n in range(8):
+                            subst[m]=n+1
+                            
+                            if np.count_nonzero(np.all(memory<=subst,axis=1))>0:
+                                subst[m]=0
+                                break
+                            
+                            for o in range(m+1,7):
+                                if coe[o]==0:
+                                    continue
+                                
+                                for p in range(8):
+                                    if o==6 and p>=4:
+                                        break
+                                    
+                                    subst[o]=p+1
+                                    
+                                    if np.count_nonzero(np.all(memory<=subst,axis=1))>0:
+                                        subst[o]=0
+                                        break
+                                    
+                                    subst[o]=0
+                            
+                                    substatus=[0]*7
+                                    substatus[i]=subst_list0[i][j+1]
+                                    substatus[k]=subst_list0[k][l+1]
+                                    substatus[m]=subst_list0[m][n+1]
+                                    substatus[o]=subst_list0[o][p+1]
+                                    chuna=cal_ave_chuna(score,times,substatus,ave_chuna)
+                                    if chuna[1]==0:
+                                        continue
+                            
+                                    if chuna[0]<=ave_chuna*a:
+                                        results.append({
+                                            "substatus": substatus.copy(),
+                                            "chuna": chuna[0],
+                                            "score": cal_score_now(substatus)
+                                        })
+
+                                        memory=np.append(memory,[[0]*7],axis=0)
+                                        memory[-1,i]=j+1
+                                        memory[-1,k]=l+1
+                                        memory[-1,m]=n+1
+                                        memory[-1,o]=p+1
+                                        break
+                                    
+                            subst[m]=0
+                                    
+                    subst[k]=0
+                    
+    if times==4:
+        return results   
+    
+    return "error"
        
 # =========================
 # タイトル
@@ -445,20 +668,24 @@ if st.button("一覧を表示"):
     ave_chuna = st.session_state["ave_chuna"]
 
     with st.spinner("計算中…（少し時間がかかります）"):
-        data = enumerate_valid_substats(score, times, ave_chuna)
+        results = judge_continue_all(score, times, ave_chuna)
 
-    if len(data) == 0:
+    if len(results) == 0:
         st.warning("条件を満たすサブステ構成がありません")
     else:
-        df = pd.DataFrame(data)
+        rows = []
+        for r in results:
+            row = {}
+            for i, name in enumerate(sub_names):
+                if coe[i] > 0:          # ← 係数0は表示しない
+                    row[name] = r["substatus"][i]
+            row["スコア"] = round(r["score"], 2)
+            row["消費チュナ"] = round(r["chuna"], 2)
+            rows.append(row)
 
-        st.subheader(f"続行推奨サブステ一覧（{len(df)} 件）")
-
-        st.dataframe(
-            df.sort_values("期待チュナ"),
-            use_container_width=True,
-            height=600
-        )
+        df = pd.DataFrame(rows)
+        st.dataframe(df, use_container_width=True)
+         
 
 
 
