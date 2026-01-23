@@ -574,6 +574,14 @@ def highlight_positive(val):
     except:
         pass
     return ""       
+
+def smart_round(x):
+    if isinstance(x, float):
+        if x.is_integer():
+            return int(x)
+        return round(x, 2)
+    return 
+
 # =========================
 # タイトル
 # =========================
@@ -700,11 +708,8 @@ if st.button("一覧を表示"):
             row["消費チュナ"] = round(r["chuna"], 2)
             rows.append(row)
 
-        df = pd.DataFrame(rows)
-        df_display = df.copy()
-        for col in df_display.columns:
-            if pd.api.types.is_numeric_dtype(df_display[col]):
-                df_display[col] = df_display[col].round(2)
+        df = pd.DataFrame(rows)        
+        df_display = df.applymap(smart_round)
 
         styled_df = df_display.style.applymap(highlight_positive)
         st.dataframe(styled_df, use_container_width=True)
