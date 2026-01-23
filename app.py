@@ -28,6 +28,16 @@ subst_list=[cr_list,cd_list,at_p_list,damage1_list,damage2_list,efficiency_list,
 subst_weight=[cr_weight,cd_weight,at_p_weight,damage1_weight,damage2_weight,efficiency_weight,at_n_weight]
 record_list=[1100,3025,5775,9875,15875]
 
+sub_names = [
+    "クリティカル",
+    "クリティカルダメージ",
+    "攻撃力％",
+    "○○ダメージアップ1",
+    "○○ダメージアップ2",
+    "共鳴効率",
+    "攻撃力実数"
+]
+
 def cal_score_now(substatus):#現在スコア
     s=0
     for i in range(7):
