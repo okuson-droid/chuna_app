@@ -500,6 +500,13 @@ SUB_VALUES = {
     5: [6.8, 7.6],
     6: [30, 40]
 }
+def judge_color(judge):
+    if judge == "強化推奨":
+        return "green"
+    elif judge == "続行可能":
+        return "gold"
+    else:
+        return "red"
 
 def build_tree(score, ave_chuna, max_depth=2):
     dot = Digraph()
