@@ -427,7 +427,8 @@ if st.button("② 判定する"):
     st.metric("想定チュナ消費量", result[0])
     st.write(result[1])
     
-st.header("強化続行サブステ一覧（特定強化回数）")
+st.header("③強化続行サブステ一覧")
+st.caption("①の計算結果をもとに表示します")
 
 times = st.number_input(
     "強化回数（開放サブステ数）",
@@ -437,8 +438,13 @@ times = st.number_input(
 )
 
 if st.button("一覧を表示"):
+    if "ave_chuna" not in st.session_state:
+        st.error("先に①の計算を実行してください")
+        st.stop()
+
+    ave_chuna = st.session_state["ave_chuna"]
+
     with st.spinner("計算中…（少し時間がかかります）"):
-        ave_chuna = cal_min_chuna(score)
         data = enumerate_valid_substats(score, times, ave_chuna)
 
     if len(data) == 0:
