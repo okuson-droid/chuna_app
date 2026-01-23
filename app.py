@@ -711,7 +711,11 @@ if st.button("一覧を表示"):
         df = pd.DataFrame(rows)        
         df_display = df.applymap(smart_round)
 
-        styled_df = df_display.style.applymap(highlight_positive)
+        styled_df = (
+            df.style
+                .format("{:.2f}")          
+                .applymap(highlight_positive)
+        )
         st.dataframe(styled_df, use_container_width=True)
          
 
