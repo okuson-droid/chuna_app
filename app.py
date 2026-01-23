@@ -483,6 +483,68 @@ def judge_continue_all(score,times,ave_chuna):
         return    
     
     return "error"
+
+from graphviz import Digraph
+
+SUB_NAMES = [
+    "クリ率", "クリダメ", "攻撃％",
+    "ダメUP1", "ダメUP2", "共鳴効率", "攻撃実数"
+]
+
+SUB_VALUES = {
+    0: [6.3, 6.9, 7.5, 8.1],
+    1: [12.6, 13.8, 15.0],
+    2: [6.4, 7.1, 7.9],
+    3: [6.4, 7.1],
+    4: [6.4],
+    5: [6.8, 7.6],
+    6: [30, 40]
+}
+
+def build_tree(score, ave_chuna, max_depth=2):
+    dot = Digraph()
+    dot.attr(rankdir="LR")
+
+    root_id = "root"
+    dot.node(root_id, "初期状態", shape="box")
+
+    node_counter = 0
+
+    def expand(node_id, substatus, times):
+        nonlocal node_counter
+        if times >= max_depth:
+            return
+
+        for i in range(7):
+            if substatus[i] > 0:
+                continue
+
+            for val in SUB_VALUES.get(i, []):
+                new_sub = substatus.copy()
+                new_sub[i] = val
+
+                chuna, judge = judge_continue(
+                    score, times + 1, new_sub, ave_chuna
+                )
+
+                node_counter += 1
+                child_id = f"n{node_counter}"
+
+                label = f"{SUB_NAMES[i]} +{val}\n{judge}\nチュナ:{chuna}"
+                dot.node(
+                    child_id,
+                    label,
+                    style="filled",
+                    fillcolor=judge_color(judge)
+                )
+
+                dot.edge(node_id, child_id)
+
+                if judge != "強化非推奨":
+                    expand(child_id, new_sub, times + 1)
+
+    expand(root_id, [0]*7, 0)
+    return dot
                     
 # =========================
 # タイトル
@@ -576,6 +638,37 @@ if st.button("② 判定する"):
     st.subheader("判定結果")
     st.metric("想定チュナ消費量", result[0])
     st.write(result[1])
+    
+st.header("③ 強化ルート可視化（ツリー）")
+
+max_depth = st.slider(
+    "表示する強化回数（重くなるので2まで推奨）",
+    min_value=1,
+    max_value=3,
+    value=2
+)
+
+if st.button("③ ツリーを生成"):
+    if "ave_chuna" not in st.session_state:
+        st.error("先に①の計算をしてください")
+        st.stop()
+
+    with st.spinner("ツリー生成中..."):
+        dot = build_tree(
+            score,
+            st.session_state["ave_chuna"],
+            max_depth=max_depth
+        )
+
+    st.graphviz_chart(dot)
+
+
+
+
+
+
+
+
     
 
 
