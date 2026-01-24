@@ -728,16 +728,22 @@ if st.button("③判定する"):
     # 差額計算
     delta_chuna = result_chuna - ave_chuna
 
+
     # 色を推奨度に応じて指定
     if delta_chuna <= 0:  # 続行すべき良い状態
         color = "green"
+        sign_text = "少ない"
     else:                 # 続行非推奨の状態
         color = "red"
+        sign_text = "多い"
 
     # 列表示
     col1, col2 = st.columns(2)
     col1.metric("想定チュナ消費量", int(result_chuna))
-    col2.markdown(f"<h3 style='color:{color}'>{round(delta_chuna,2)}</h3>", unsafe_allow_html=True)
+    col2.markdown(
+        f"<h4 style='color:{color}'>境界との差: {abs(round(delta_chuna,2))} ({sign_text})</h4>",
+        unsafe_allow_html=True
+    )
 
     if delta_chuna <= 0:
         st.caption("この状態から強化を続けた場合、レベル0からの強化よりも期待値的にお得")
