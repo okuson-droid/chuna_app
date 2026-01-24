@@ -597,14 +597,15 @@ st.caption("現在、HP参照キャラであるカルテジアは非対応")
 
 coe = [2, 1, 1, 0, 0, 0, 0.1]
 
-coe[3] = st.number_input("○○ダメージアップ1", value=0.0, step=0.1)
+coe[3] = st.number_input("○○ダメージアップ1", value=0.7, step=0.1)
 coe[4] = st.number_input("○○ダメージアップ2", value=0.0, step=0.1)
-coe[5] = st.number_input("共鳴効率", value=0.0, step=0.1)
+coe[5] = st.number_input("共鳴効率", value=1.0, step=0.1)
 
 st.header("①使用可能チュナから目標スコアを算出")
 
 chuna_limit = st.number_input(
     "使用可能なチュナ量",
+    value=300
     min_value=1,
     step=100
 )
@@ -627,8 +628,9 @@ st.header("②目標スコア達成に必要な素材量を算出")
 
 score = st.number_input(
     "目標スコア",
+    value=40
     min_value=1,
-    step=5,
+    step=1,
     value=st.session_state.get("score", 1)
 )
 
@@ -785,7 +787,7 @@ if st.button("一覧グラフを表示"):
     scores = list(range(score_min, score_max + 1, score_step))
 
     with st.spinner("計算中...（少し時間がかかります）"):
-        chuna_values = [cached_cal_min_chuna(s,coe) for s in scores]
+        chuna_values = [cached_cal_min_chuna(s,tuple(coe)) for s in scores]
 
     # === グラフ描画 ===
     fig, ax = plt.subplots(figsize=(8, 5))
