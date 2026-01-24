@@ -742,7 +742,7 @@ st.caption("逆に、表に含まれる行のいずれか一つと同じかそ�
 times_step4 = st.slider(
     "強化回数",
     0, 5, 0, 1,
-    key="times_step3"
+    key="times_step4"
 )
 
 if st.button("④一覧を表示"):
