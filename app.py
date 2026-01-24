@@ -726,14 +726,19 @@ if st.button("③判定する"):
     st.metric("判定", result_text)
 
     delta_chuna = result_chuna - ave_chuna
-    st.metric("想定チュナ消費量", result_chuna, delta_chuna)
-
     if delta_chuna <= 0:
-        st.caption("この状態から強化を続けた場合、レベル0からの強化よりも期待値的にお得")
+        # 良い状態 → 緑
+        st.markdown(
+            f'<span style="color:green">この状態から強化を続ける場合は、レベル0音骸を強化する場合よりも有利な位置にあります</span>',
+            unsafe_allow_html=True
+        )
     else:
-        st.caption("この状態から強化を続けるよりも、レベル0の音骸を強化した方が期待値的にお得")
+        # 悪い状態 → 赤
+        st.markdown(
+            f'<span style="color:red">この状態から強化を続ける場合は、レベル0音骸を強化する場合よりも不利な位置にあります</span>',
+            unsafe_allow_html=True
+        )
 
-    
 st.header("④これ以上なら強化していい最小ライン一覧")
 st.caption("②の計算結果をもとに表示")
 st.caption("この表に含まれる行のいずれか一つでも完全に下回っていると強化続行非推奨")
