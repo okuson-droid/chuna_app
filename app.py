@@ -278,53 +278,6 @@ def cal_ave_chuna(score,times,substatus,ave_chuna):
     else:
         print("error")
 
-
-    results = []
-    memory = []
-
-    subst_list0 = copy.deepcopy(subst_list)
-    for i in range(7):
-        subst_list0[i].insert(0, 0)
-
-    for comb in itertools.combinations(range(7), times):
-        ranges = []
-        for i in comb:
-            if i == 6:  # 攻撃力実数
-                ranges.append(range(1, 5))
-            else:
-                ranges.append(range(1, 9))
-
-        for levels in itertools.product(*ranges):
-            vec = np.zeros(7, dtype=int)
-            for i, lv in zip(comb, levels):
-                vec[i] = lv
-
-            if is_dominated(vec, memory):
-                continue
-
-            substatus = [subst_list0[i][vec[i]] for i in range(7)]
-            chuna = cal_ave_chuna(score, times, substatus, ave_chuna)
-
-            if chuna[1] == 0:
-                continue
-
-            if chuna[0] <= ave_chuna:
-                memory.append(vec)
-                results.append({
-                    "クリ率": substatus[0],
-                    "クリダメ": substatus[1],
-                    "攻撃%": substatus[2],
-                    "ダメUP1": substatus[3],
-                    "ダメUP2": substatus[4],
-                    "共鳴効率": substatus[5],
-                    "攻撃実数": substatus[6],
-                    "有効サブ数": sum(1 for i in range(7) if substatus[i] > 0 and coe[i] > 0),
-                    "合計スコア": round(cal_score_now(substatus), 2),
-                    "期待チュナ": round(chuna[0], 2),
-                })
-
-    return results
-
 def judge_continue_all(score,times,ave_chuna):
     results = []
     a=1
@@ -580,7 +533,7 @@ def smart_round(x):
         if x.is_integer():
             return int(x)
         return round(x, 2)
-    return 
+    return x
 
 def cal_max_score_by_chuna(chuna_limit, score_min=1, score_max=80):
     lo, hi = score_min, score_max
