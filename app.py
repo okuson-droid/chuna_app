@@ -678,8 +678,43 @@ if st.button("②計算する"):
     st.metric("素体消費量", n[3])
 
 st.header("③音骸の強化続行判定")
+st.caption("②の計算結果を元に、現在の音骸が続行ラインを超えているかを判定")
 
-st.caption("②の計算結果を元に判定")
+with st.expander("現在のサブステータスを入力", expanded=True):
+
+    times = st.number_input(
+        "現在開放されているサブステ数",
+        min_value=0,
+        max_value=4,
+        step=1
+    )
+
+    st.caption("※ 未取得のサブステは 0 のままにしてください")
+
+    substatus = [0.0] * 7
+
+    # 有効サブステだけ抽出
+    active_indices = [i for i in range(7) if coe[i] > 0]
+
+    # 2列 or 3列レイアウト
+    cols = st.columns(3)
+
+    for idx, i in enumerate(active_indices):
+        with cols[idx % 3]:
+            substatus[i] = substat_slider(
+                sub_names[i],
+                subst_list[i],
+                enabled=True
+            )
+
+    opened = sum(1 for v in substatus if v > 0)
+
+    if opened > times:
+        st.warning(
+            f"開放されているサブステ数（{opened}）が "
+            f"強化回数（{times}）を超えています"
+        )
+
 
 times = st.number_input(
     "強化回数（現在いくつのサブステが開けられているか）",
@@ -687,25 +722,6 @@ times = st.number_input(
     max_value=4,
     step=1
 )
-
-st.caption("現在開放されているサブステの数値を選択してください")
-
-substatus = [0.0] * 7
-
-for i in range(7):
-    substatus[i] = substat_slider(
-        sub_names[i],
-        subst_list[i],
-        enabled=(coe[i] > 0)
-    )
-
-opened = sum(1 for v in substatus if v > 0)
-
-if opened > times:
-    st.warning(
-        f"開放されているサブステ数（{opened}）が "
-        f"強化回数（{times}）を超えています"
-    )
 
 if st.button("③判定する"):
     if "ave_chuna" not in st.session_state:
