@@ -711,7 +711,7 @@ with st.expander("現在のサブステータスを入力", expanded=True):
     if opened > times_step3:
         st.warning(
             f"開放されているサブステ数（{opened}）が "
-            f"強化回数（{times}）を超えています"
+            f"強化回数（{times_step3}）を超えています"
         )
 
 if st.button("③判定する"):
