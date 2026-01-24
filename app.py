@@ -682,7 +682,7 @@ st.caption("②の計算結果を元に、現在の音骸が続行ラインを�
 
 with st.expander("現在のサブステータスを入力", expanded=True):
 
-    times = st.slider(
+    times_step3 = st.slider(
         "強化回数（現在いくつのサブステが開けられているか）",
         0, 5, 0, 1,
         key="times"
@@ -708,7 +708,7 @@ with st.expander("現在のサブステータスを入力", expanded=True):
 
     opened = sum(1 for v in substatus if v > 0)
 
-    if opened > times:
+    if opened > times_step3:
         st.warning(
             f"開放されているサブステ数（{opened}）が "
             f"強化回数（{times}）を超えています"
@@ -719,20 +719,20 @@ if st.button("③判定する"):
         st.error("先に②の計算を実行してください")
         st.stop()
         
-    if opened > times:
+    if opened > times_step3:
         st.stop()
 
     ave_chuna = st.session_state["ave_chuna"]
 
     with st.spinner("判定中..."):
-        result = list(judge_continue(score, times, substatus, ave_chuna,coe))
+        result = list(judge_continue(score, times_step3, substatus, ave_chuna,coe))
 
     st.subheader("判定結果")
 
     judge_text = "強化続行 推奨" if result[1] else "強化続行 非推奨"
     st.metric("判定", judge_text)
 
-    result_chuna, judge_text = judge_continue(score, times, substatus, ave_chuna,coe)
+    result_chuna, judge_text = judge_continue(score, times_step3, substatus, ave_chuna,coe)
 
     delta_chuna = result_chuna - ave_chuna
     
@@ -748,10 +748,10 @@ st.caption("②の計算結果をもとに表示")
 st.caption("この表に含まれる行のいずれか一つでも完全に下回っていると強化続行非推奨")
 st.caption("逆に、表に含まれる行のいずれか一つと同じかそれを上回っていれば強化続行推奨")
 
-times = st.slider(
+times_step4 = st.slider(
     "強化回数",
     0, 5, 0, 1,
-    key="times"
+    key="times_step3"
 )
 
 if st.button("一覧を表示"):
@@ -762,7 +762,7 @@ if st.button("一覧を表示"):
     ave_chuna = st.session_state["ave_chuna"]
 
     with st.spinner("計算中…"):
-        results = judge_continue_all(score, times, ave_chuna,coe)
+        results = judge_continue_all(score, times_step4, ave_chuna,coe)
 
     if len(results) == 0:
         st.warning("条件を満たすサブステ構成がありません")
