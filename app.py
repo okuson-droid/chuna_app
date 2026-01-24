@@ -588,18 +588,41 @@ def cached_cal_min_chuna(score,coe):
 # =========================
 # 共通パラメータ入力
 # =========================
-st.header("基本設定")
-st.write("スコア計算に必要な各サブステータスの係数を入力")
-st.caption("一般的なアタッカーは○○ダメージアップの係数は0.7に設定すれば、それほど支障はない")
-st.caption("共鳴効率はサブステータスで30程度盛りたい場合は1、20程度盛りたい場合は0.6と設定することを推奨")
-st.caption("消滅漂泊者など2種類のダメアップが有効なキャラ以外は、○○ダメージアップ2のところは0のままでOK")
-st.caption("現在、HP参照キャラであるカルテジアは非対応")
 
-coe = [2, 1, 1, 0, 0, 0, 0.1]
 
-coe[3] = st.number_input("○○ダメージアップ1", value=0.7, step=0.1)
-coe[4] = st.number_input("○○ダメージアップ2", value=0.0, step=0.1)
-coe[5] = st.number_input("共鳴効率", value=1.0, step=0.1)
+with st.sidebar:
+    st.header("基本設定")
+
+    st.write("スコア計算に使用するサブステ係数")
+    st.caption("※ ここで設定した値は全体の判定・計算に影響します")
+
+    st.markdown("---")
+
+    st.caption("一般的なアタッカー：○○ダメージアップ1 ≒ 0.7")
+    st.caption("共鳴効率：サブステで30盛りたいなら 1 / 20なら 0.6")
+    st.caption("2種のダメUPが有効なキャラ以外、ダメアップ2は 0 のままでOK")
+    st.caption("※ HP参照キャラ（カルテジア）は非対応")
+
+    coe = [2, 1, 1, 0, 0, 0, 0.1]
+
+    coe[3] = st.number_input(
+        "○○ダメージアップ1 係数",
+        value=0.7,
+        step=0.1
+    )
+
+    coe[4] = st.number_input(
+        "○○ダメージアップ2 係数",
+        value=0.0,
+        step=0.1
+    )
+
+    coe[5] = st.number_input(
+        "共鳴効率 係数",
+        value=1.0,
+        step=0.1
+    )
+
 
 st.header("①使用可能チュナから目標スコアを算出")
 
