@@ -633,7 +633,7 @@ chuna_limit = st.number_input(
     step=100
 )
 
-if st.button("目標スコアを算出"):
+if st.button("①目標スコアを算出"):
     with st.spinner("計算中…"):
         target_score = cal_max_score_by_chuna(chuna_limit,coe)
         chuna, prob, record = cal_ave_chuna0(target_score, chuna_limit,coe)
@@ -685,17 +685,13 @@ with st.expander("現在のサブステータスを入力", expanded=True):
     times_step3 = st.slider(
         "強化回数（現在いくつのサブステが開けられているか）",
         0, 5, 0, 1,
-        key="times"
+        key="times_step3"
     )
 
     st.caption("※ 未取得のサブステは 0 のままにしてください")
 
     substatus = [0.0] * 7
-
-    # 有効サブステだけ抽出
     active_indices = [i for i in range(7) if coe[i] > 0]
-
-    # 2列 or 3列レイアウト
     cols = st.columns(3)
 
     for idx, i in enumerate(active_indices):
@@ -706,42 +702,37 @@ with st.expander("現在のサブステータスを入力", expanded=True):
                 enabled=True
             )
 
-    opened = sum(1 for v in substatus if v > 0)
+# STEP3 判定ボタン押下時
+if st.button("③判定する"):
 
+    if "ave_chuna" not in st.session_state:
+        st.error("先に②の計算を実行してください")
+        st.stop()
+
+    opened = sum(1 for v in substatus if v > 0)
     if opened > times_step3:
         st.warning(
             f"開放されているサブステ数（{opened}）が "
             f"強化回数（{times_step3}）を超えています"
         )
-
-if st.button("③判定する"):
-    if "ave_chuna" not in st.session_state:
-        st.error("先に②の計算を実行してください")
-        st.stop()
-        
-    if opened > times_step3:
         st.stop()
 
-    ave_chuna = st.session_state["ave_chuna"]
+    ave_chuna = st.session_state.get("ave_chuna", 0)
 
     with st.spinner("判定中..."):
-        result = list(judge_continue(score, times_step3, substatus, ave_chuna,coe))
+        result_chuna, result_text = judge_continue(score, times_step3, substatus, ave_chuna, coe)
 
     st.subheader("判定結果")
-
-    judge_text = "強化続行 推奨" if result[1] else "強化続行 非推奨"
-    st.metric("判定", judge_text)
-
-    result_chuna, judge_text = judge_continue(score, times_step3, substatus, ave_chuna,coe)
+    st.metric("判定", result_text)
 
     delta_chuna = result_chuna - ave_chuna
-    
     st.metric("想定チュナ消費量", result_chuna, delta_chuna)
-    
+
     if delta_chuna <= 0:
-        st.caption("この状態から強化を続けた場合、判断基準としている期待コストより有利な位置にあります")
+        st.caption("この状態から強化を続けた場合、レベル0からの強化よりも期待値的にお得")
     else:
-        st.caption("この状態から強化を続けた場合、判断基準としている期待コストを上回る位置にあります")
+        st.caption("この状態から強化を続けるよりも、レベル0の音骸を強化した方が期待値的にお得")
+
     
 st.header("④これ以上なら強化していい最小ライン一覧")
 st.caption("②の計算結果をもとに表示")
@@ -754,7 +745,7 @@ times_step4 = st.slider(
     key="times_step3"
 )
 
-if st.button("一覧を表示"):
+if st.button("④一覧を表示"):
     if "ave_chuna" not in st.session_state:
         st.error("先に②の計算を実行してください")
         st.stop()
