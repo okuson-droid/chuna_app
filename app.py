@@ -582,6 +582,44 @@ def smart_round(x):
         return round(x, 2)
     return 
 
+def cal_max_score_by_chuna(chuna_limit, score_min=1, score_max=80):
+    lo, hi = score_min, score_max
+    best = lo
+
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        need = cal_min_chuna(mid)
+
+        if need <= chuna_limit:
+            best = mid
+            lo = mid + 1
+        else:
+            hi = mid - 1
+
+    return best
+
+def substat_slider(name, values, enabled=True):
+    """
+    values : そのサブステが取りうる数値リスト（長さ8）
+    enabled: 係数0なら False
+    """
+    idx = st.slider(
+        name,
+        min_value=0,
+        max_value=len(values),
+        value=0,
+        step=1,
+        disabled=not enabled,
+    )
+
+    if idx == 0:
+        st.caption("未取得")
+        return 0.0
+    else:
+        val = values[idx - 1]
+        st.caption(f"選択値：{val}")
+        return val
+
 # =========================
 # タイトル
 # =========================
@@ -610,14 +648,38 @@ coe[3] = st.number_input("○○ダメージアップ1", value=0.0, step=0.1)
 coe[4] = st.number_input("○○ダメージアップ2", value=0.0, step=0.1)
 coe[5] = st.number_input("共鳴効率", value=0.0, step=0.1)
 
-score = st.number_input("目標スコア", min_value=1, step=1)
+st.header("①使用可能チュナから目標スコアを算出")
 
-# =========================
-# ① 必要素材計算
-# =========================
-st.header("① 目標スコア以上の音骸を1体作るための素材消費量")
+chuna_limit = st.number_input(
+    "使用可能なチュナ量",
+    min_value=1,
+    step=100
+)
 
-if st.button("① 計算する"):
+if st.button("目標スコアを算出"):
+    with st.spinner("計算中…"):
+        target_score = cal_max_score_by_chuna(chuna_limit)
+        chuna, prob, record = cal_ave_chuna0(target_score, chuna_limit)
+
+    st.subheader("算出結果")
+    st.metric("現実的な目標スコア", target_score)
+    st.metric("想定チュナ消費量", int(chuna))
+    st.metric("想定素体消費量", int(1 / prob) if prob > 0 else "∞")
+    
+    if st.button("このスコアをSTEP2に使う"):
+        st.session_state["score"] = target_score
+    
+
+st.header("②目標スコア達成に必要な素材量を算出")
+
+score = st.number_input(
+    "目標スコア",
+    min_value=1,
+    step=1,
+    value=st.session_state.get("score", 1)
+)
+
+if st.button("②計算する"):
     with st.spinner("計算中..."):
         chuna = cached_cal_min_chuna(score)
         n = list(cal_ave_chuna0(score, chuna))
@@ -638,32 +700,42 @@ if st.button("① 計算する"):
     st.metric("レコード消費量", n[2])
     st.metric("素体消費量", n[3])
 
-# =========================
-# ② 強化続行判定
-# =========================
-st.header("② 音骸の強化続行判定")
+st.header("③音骸の強化続行判定")
 
-st.caption("①の計算結果を元に判定")
+st.caption("②の計算結果を元に判定")
 
 times = st.number_input(
-    "強化回数（サブステが開いた数）",
+    "強化回数（現在いくつのサブステが開けられているか）",
     min_value=0,
     max_value=4,
     step=1
 )
 
-substatus = [0.0] * 7
-substatus[0] = st.number_input("クリティカル", value=0.0)
-substatus[1] = st.number_input("クリティカルダメージ", value=0.0)
-substatus[2] = st.number_input("攻撃力％", value=0.0)
-substatus[3] = st.number_input("○○ダメージアップ1", value=0.0)
-substatus[4] = st.number_input("○○ダメージアップ2", value=0.0)
-substatus[5] = st.number_input("共鳴効率", value=0.0)
-substatus[6] = st.number_input("攻撃力実数", value=0.0)
+st.caption("現在開放されているサブステの数値を選択してください")
 
-if st.button("② 判定する"):
+substatus = [0.0] * 7
+
+for i in range(7):
+    substatus[i] = substat_slider(
+        sub_names[i],
+        subst_list[i],
+        enabled=(coe[i] > 0)
+    )
+
+opened = sum(1 for v in substatus if v > 0)
+
+if opened > times:
+    st.warning(
+        f"開放されているサブステ数（{opened}）が "
+        f"強化回数（{times}）を超えています"
+    )
+
+if st.button("③判定する"):
     if "ave_chuna" not in st.session_state:
-        st.error("先に①の計算を実行してください")
+        st.error("先に②の計算を実行してください")
+        st.stop()
+        
+    if opened > times:
         st.stop()
 
     ave_chuna = st.session_state["ave_chuna"]
@@ -672,11 +744,26 @@ if st.button("② 判定する"):
         result = list(judge_continue(score, times, substatus, ave_chuna))
 
     st.subheader("判定結果")
-    st.metric("想定チュナ消費量", result[0])
-    st.write(result[1])
+
+    judge_text = "強化続行 推奨" if result[1] else "強化続行 非推奨"
+    st.metric("判定", judge_text)
+
+    delta_score = result[2]   # 境界との差（スコア）
+    delta_chuna = result[0] - ave_chuna
+
+    col1, col2 = st.columns(2)
+    col1.metric("想定チュナ消費量", int(result[0]), int(delta_chuna))
+    col2.metric("境界との差", round(delta_score, 2))
+
+    if delta_score >= 0:
+        st.caption("この状態から強化を続けた場合、判断基準としている期待コストより有利な位置にあります")
+    else:
+        st.caption("この状態から強化を続けた場合、判断基準としている期待コストを上回る位置にあります")
     
-st.header("③強化続行サブステ一覧")
-st.caption("①の計算結果をもとに表示")
+st.header("④これ以上なら強化していい最小ライン一覧")
+st.caption("②の計算結果をもとに表示")
+st.caption("この表に含まれる行のいずれか一つでも完全に下回っていると強化続行非推奨")
+st.caption("逆に、表に含まれる行のいずれか一つと同じかそれを上回っていれば強化続行推奨")
 
 times = st.number_input(
     "強化回数（開放サブステ数）",
@@ -687,7 +774,7 @@ times = st.number_input(
 
 if st.button("一覧を表示"):
     if "ave_chuna" not in st.session_state:
-        st.error("先に①の計算を実行してください")
+        st.error("先に②の計算を実行してください")
         st.stop()
 
     ave_chuna = st.session_state["ave_chuna"]
@@ -717,7 +804,7 @@ if st.button("一覧を表示"):
                 .applymap(highlight_positive)
         )
         st.dataframe(styled_df, use_container_width=True)
-         
+        
 
 
 
