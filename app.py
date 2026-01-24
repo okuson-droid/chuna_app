@@ -1,8 +1,8 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import copy
-import itertools
 
 #チュナ最小になる戦略（新）(レコードの消費量も計算)
 
@@ -806,8 +806,6 @@ if st.button("④一覧を表示"):
                 .applymap(highlight_positive)
         )
         st.dataframe(styled_df, use_container_width=True)
-        
-import matplotlib.pyplot as plt
 
 st.header("⑤目標スコア別・必要チュナ量一覧")
 
@@ -854,6 +852,20 @@ if st.button("一覧グラフを表示"):
     })
 
     st.dataframe(df, use_container_width=True)
+    
+    # =========================
+    # ダウンロード
+    # =========================
+    st.subheader("⬇ ダウンロード")
+
+    csv = df.to_csv(index=False).encode("utf-8-sig")
+
+    st.download_button(
+        label="CSVをダウンロード",
+        data=csv,
+        file_name="score_chuna_table.csv",
+        mime="text/csv"
+    )
 
         
 
