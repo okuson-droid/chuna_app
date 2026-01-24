@@ -605,7 +605,7 @@ st.header("①使用可能チュナから目標スコアを算出")
 
 chuna_limit = st.number_input(
     "使用可能なチュナ量",
-    value=300
+    value=300,
     min_value=1,
     step=100
 )
@@ -628,7 +628,7 @@ st.header("②目標スコア達成に必要な素材量を算出")
 
 score = st.number_input(
     "目標スコア",
-    value=40
+    value=40,
     min_value=1,
     step=1,
     value=st.session_state.get("score", 1)
