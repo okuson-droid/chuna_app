@@ -675,7 +675,7 @@ st.header("②目標スコア達成に必要な素材量を算出")
 score = st.number_input(
     "目標スコア",
     min_value=1,
-    step=1,
+    step=5,
     value=st.session_state.get("score", 1)
 )
 
@@ -748,14 +748,13 @@ if st.button("③判定する"):
     judge_text = "強化続行 推奨" if result[1] else "強化続行 非推奨"
     st.metric("判定", judge_text)
 
-    delta_score = result[2]   # 境界との差（スコア）
-    delta_chuna = result[0] - ave_chuna
+    result_chuna, judge_text = judge_continue(score, times, substatus, ave_chuna)
 
-    col1, col2 = st.columns(2)
-    col1.metric("想定チュナ消費量", int(result[0]), int(delta_chuna))
-    col2.metric("境界との差", round(delta_score, 2))
-
-    if delta_score >= 0:
+    delta_chuna = result_chuna - ave_chuna
+    
+    st.metric("想定チュナ消費量", result_chuna, delta_chuna)
+    
+    if delta_chuna <= 0:
         st.caption("この状態から強化を続けた場合、判断基準としている期待コストより有利な位置にあります")
     else:
         st.caption("この状態から強化を続けた場合、判断基準としている期待コストを上回る位置にあります")
