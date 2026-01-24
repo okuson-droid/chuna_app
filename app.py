@@ -610,9 +610,9 @@ with st.sidebar:
 
     st.markdown("---")
 
-    st.caption("一般的なアタッカー：○○ダメージアップ1の係数 ≒ 0.7")
-    st.caption("共鳴効率：サブステで30盛りたいなら 1 / 20なら 0.6")
-    st.caption("2種のダメUPが有効なキャラ以外、ダメアップ2は 0 のままでOK")
+    st.caption("※ 一般的なアタッカー：○○ダメージアップ1の係数 ≒ 0.7")
+    st.caption("※ 共鳴効率：サブステで30盛りたいなら 1 / 20盛りたいなら 0.6")
+    st.caption("※ 2種類のダメUPが有効なキャラ（消滅漂泊者など）以外、ダメアップ2は 0 のままでOK")
     st.caption("※ HP参照キャラ（カルテジア）は非対応")
 
     coe = [2, 1, 1, 0, 0, 0, 0.1]
@@ -646,17 +646,17 @@ chuna_limit = st.number_input(
 )
 
 if st.button("①目標スコアを算出"):
-    with st.spinner("計算中…"):
+    with st.spinner("計算中…（時間がかかります）"):
         score_max=cal_max_score(coe)
         target_score = cal_max_score_by_chuna(chuna_limit,coe,score_max)
         chuna, prob, record = cal_ave_chuna0(target_score, chuna_limit,coe)
 
     st.subheader("算出結果")
-    st.metric("現実的な目標スコア", target_score)
+    st.metric("現実的な目標スコア", int(target_score))
     st.metric("想定チュナ消費量", int(chuna))
     st.metric("想定素体消費量", int(1 / prob) if prob > 0 else "∞")
     
-    if st.button("このスコアをSTEP2に使う"):
+    if st.button("この目標スコアを②に使う"):
         st.session_state["score"] = target_score
     
 
@@ -812,8 +812,7 @@ import matplotlib.pyplot as plt
 st.header("⑤目標スコア別・必要チュナ量一覧")
 
 st.caption(
-    "目標スコアごとに、1体完成させるまでに必要な平均チュナ消費量を表示します。\n"
-    "線が急に跳ねる部分は、強化戦略が切り替わる判断境界を表しています。"
+    "目標スコアごとに、1体完成させるまでに必要な平均チュナ消費量を表示します。"
 )
 
 # === 描画範囲の指定 ===
