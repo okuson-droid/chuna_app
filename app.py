@@ -236,12 +236,24 @@ def cal_ave_chuna0(score,ave_chuna,coe):
     record=(record_1time_1+record_1time_2+record_list[0]*13)/prob+(record_list[0]+record_list[1]+record_list[2]+record_list[3]+record_list[4])*3
     return chuna,prob/13,record
 
+def cal_max_score(coe):#取りうるスコアの最大値を計算
+    arr = [coe[i] * subst_list[i][7] for i in range(3, 7)]
+    largest, second_largest = sorted(arr, reverse=True)[:2]
+    max_score=53.6+largest+second_largest 
+    
+    return max_score
+      
 def cal_min_chuna(score,coe):#入力スコア以上の音骸を一つ作るのに必要なチュナ
     chuna1=4000
     chuna2=0
     while abs(chuna1-chuna2)>=1:
-        chuna2=chuna1
-        chuna1=cal_ave_chuna0(score,chuna1,coe)[0]
+        a=cal_ave_chuna0(score,chuna1,coe)[0]
+        if a==0:
+            chuna2=300000
+            chuna1=cal_ave_chuna0(score,300000,coe)[0]
+        else:    
+            chuna2=chuna1
+            chuna1=a
     return chuna1    
 
 def judge_continue(score,times,substatus,ave_chuna,coe):#強化続行判定
@@ -535,7 +547,7 @@ def smart_round(x):
         return round(x, 2)
     return x
 
-def cal_max_score_by_chuna(chuna_limit,coe, score_min=1, score_max=80):
+def cal_max_score_by_chuna(chuna_limit,coe,score_max, score_min=1):
     lo, hi = score_min, score_max
     best = lo
 
@@ -635,7 +647,8 @@ chuna_limit = st.number_input(
 
 if st.button("①目標スコアを算出"):
     with st.spinner("計算中…"):
-        target_score = cal_max_score_by_chuna(chuna_limit,coe)
+        score_max=cal_max_score(coe)
+        target_score = cal_max_score_by_chuna(chuna_limit,coe,score_max)
         chuna, prob, record = cal_ave_chuna0(target_score, chuna_limit,coe)
 
     st.subheader("算出結果")
