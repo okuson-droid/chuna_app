@@ -757,6 +757,56 @@ if st.button("一覧を表示"):
         )
         st.dataframe(styled_df, use_container_width=True)
         
+import matplotlib.pyplot as plt
+
+st.header("⑤目標スコア別・必要チュナ量一覧")
+
+st.caption(
+    "目標スコアごとに、1体完成させるまでに必要な平均チュナ消費量を表示します。\n"
+    "線が急に跳ねる部分は、強化戦略が切り替わる判断境界を表しています。"
+)
+
+# === 描画範囲の指定 ===
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    score_min = st.number_input("最小スコア", value=30, step=1)
+with col2:
+    score_max = st.number_input("最大スコア", value=80, step=1)
+with col3:
+    score_step = st.number_input("刻み幅", value=1, step=1)
+
+if score_min >= score_max:
+    st.error("最小スコアは最大スコアより小さくしてください")
+    st.stop()
+
+# === 計算 ===
+if st.button("一覧グラフを表示"):
+    scores = list(range(score_min, score_max + 1, score_step))
+
+    with st.spinner("計算中...（少し時間がかかります）"):
+        chuna_values = [cached_cal_min_chuna(s,coe) for s in scores]
+
+    # === グラフ描画 ===
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(scores, chuna_values, marker="o")
+
+    ax.set_xlabel("目標スコア")
+    ax.set_ylabel("平均チュナ消費量")
+    ax.set_title("目標スコアと必要チュナ量の関係")
+
+    ax.grid(True)
+    st.pyplot(fig)
+
+    # === テーブル（おまけ・数値確認用） ===
+    df = pd.DataFrame({
+        "目標スコア": scores,
+        "平均チュナ消費量": [int(x) for x in chuna_values]
+    })
+
+    st.dataframe(df, use_container_width=True)
+
+        
 
 
 
