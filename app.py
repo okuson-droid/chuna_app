@@ -628,10 +628,9 @@ st.header("②目標スコア達成に必要な素材量を算出")
 
 score = st.number_input(
     "目標スコア",
-    value=40,
     min_value=1,
     step=1,
-    value=st.session_state.get("score", 1)
+    value=st.session_state.get("score", 40)
 )
 
 if st.button("②計算する"):
