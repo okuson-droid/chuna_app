@@ -641,7 +641,7 @@ for idx, i in enumerate(active_indices):
         substatus[i] = substat_slider(
             sub_names[i],
             subst_list[i],
-            enabled=True
+            enabled=True,
             key=f"substat_{i}"
         )
 
@@ -773,7 +773,7 @@ with st.expander("現在のサブステータスを入力", expanded=True):
             substatus[i] = substat_slider(
                 sub_names[i],
                 subst_list[i],
-                enabled=True
+                enabled=True,
                 key=f"substat_{i}"
             )
 
