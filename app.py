@@ -642,7 +642,7 @@ for idx, i in enumerate(active_indices):
             sub_names[i],
             subst_list[i],
             enabled=True,
-            key=f"substat_{i}"
+            key=f"step1_substat_{i}"
         )
 
 st.divider()
@@ -774,7 +774,7 @@ with st.expander("現在のサブステータスを入力", expanded=True):
                 sub_names[i],
                 subst_list[i],
                 enabled=True,
-                key=f"substat_{i}"
+                key=f"step3_substat_{i}"
             )
 
 # STEP3 判定ボタン押下時
