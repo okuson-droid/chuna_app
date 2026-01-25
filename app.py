@@ -563,27 +563,15 @@ def cal_max_score_by_chuna(chuna_limit,coe,score_max, score_min=1):
 
     return best
 
-def substat_slider(name, values, enabled=True):
-    """
-    values : そのサブステが取りうる数値リスト（長さ8）
-    enabled: 係数0なら False
-    """
-    idx = st.slider(
+def substat_slider(name, value_list, enabled=True, key=None):
+    return st.select_slider(
         name,
-        min_value=0,
-        max_value=len(values),
-        value=0,
-        step=1,
+        options=[0.0] + value_list,
+        value=0.0,
         disabled=not enabled,
+        format_func=lambda x: "未取得" if x == 0 else f"{x}",
+        key=key
     )
-
-    if idx == 0:
-        st.caption("未取得")
-        return 0.0
-    else:
-        val = values[idx - 1]
-        st.caption(f"選択値：{val}")
-        return val
 
 def calc_score_breakdown(substatus, coe):
     return [substatus[i] * coe[i] for i in range(len(substatus))]
@@ -654,6 +642,7 @@ for idx, i in enumerate(active_indices):
             sub_names[i],
             subst_list[i],
             enabled=True
+            key=f"substat_{i}"
         )
 
 st.divider()
@@ -785,6 +774,7 @@ with st.expander("現在のサブステータスを入力", expanded=True):
                 sub_names[i],
                 subst_list[i],
                 enabled=True
+                key=f"substat_{i}"
             )
 
 # STEP3 判定ボタン押下時
