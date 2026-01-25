@@ -585,6 +585,8 @@ def substat_slider(name, values, enabled=True):
         st.caption(f"選択値：{val}")
         return val
 
+def calc_score_breakdown(substatus, coe):
+    return [substatus[i] * coe[i] for i in range(len(substatus))]
 # =========================
 # タイトル
 # =========================
@@ -633,6 +635,76 @@ with st.sidebar:
         "共鳴効率 係数",
         value=1.0,
         step=0.1
+    )
+
+
+st.title("🔊 音骸スコア計算")
+
+st.caption("※ 最大強化済み音骸を想定")
+
+st.subheader("サブステ入力")
+
+substatus = [0.0] * 7
+active_indices = [i for i in range(7) if coe[i] > 0]
+cols = st.columns(3)
+
+for idx, i in enumerate(active_indices):
+    with cols[idx % 3]:
+        substatus[i] = substat_slider(
+            sub_names[i],
+            subst_list[i],
+            enabled=True
+        )
+
+st.divider()
+
+# ---- 有効サブステ数チェック ----
+active_count = sum(1 for v in substatus if v > 0)
+
+if active_count > 5:
+    st.error(
+        f"有効サブステが {active_count} 個あります。\n"
+        "最大5つまでしか入力できません。"
+    )
+elif active_count == 0:
+    st.info("サブステを入力してください。")
+else:
+    # ---- 計算 ----
+    total_score = cal_score_now(substatus, coe)
+    breakdown = calc_score_breakdown(substatus, coe)
+
+    st.subheader("計算結果")
+
+    st.metric(
+        label="合計スコア",
+        value=f"{total_score:.2f}"
+    )
+
+    # ---- 内訳表（0は除外） ----
+    df = pd.DataFrame({
+        "サブステ": sub_names,
+        "値": substatus,
+        "係数": coe,
+        "スコア寄与": breakdown
+    })
+
+    df = df[df["値"] > 0]
+
+    st.subheader("③ スコア内訳")
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # ---- CSV DL ----
+    csv = df.to_csv(index=False).encode("utf-8-sig")
+
+    st.download_button(
+        label="📥 スコア内訳をCSVでダウンロード",
+        data=csv,
+        file_name="relic_score.csv",
+        mime="text/csv"
     )
 
 
