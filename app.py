@@ -758,7 +758,7 @@ with st.expander("現在のサブステータスを入力", expanded=True):
 
     times_step3 = st.slider(
         "強化回数（現在いくつのサブステが開けられているか）",
-        0, 5, 0, 1,
+        0, 4, 0, 1,
         key="times_step3"
     )
 
@@ -832,7 +832,7 @@ st.caption("逆に、表に含まれる行のいずれか一つと同じかそ�
 
 times_step4 = st.slider(
     "強化回数",
-    0, 5, 0, 1,
+    0, 4, 0, 1,
     key="times_step4"
 )
 
@@ -869,65 +869,7 @@ if st.button("④一覧を表示"):
         )
         st.dataframe(styled_df, use_container_width=True)
 
-st.header("⑤目標スコア別・必要チュナ量一覧")
 
-st.caption(
-    "目標スコアごとに、1体完成させるまでに必要な平均チュナ消費量を表示します。"
-)
-
-# === 描画範囲の指定 ===
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    score_min = st.number_input("最小スコア", value=30, step=1)
-with col2:
-    score_max = st.number_input("最大スコア", value=80, step=1)
-with col3:
-    score_step = st.number_input("刻み幅", value=1, step=1)
-
-if score_min >= score_max:
-    st.error("最小スコアは最大スコアより小さくしてください")
-    st.stop()
-
-# === 計算 ===
-if st.button("一覧グラフを表示"):
-    scores = list(range(score_min, score_max + 1, score_step))
-
-    with st.spinner("計算中...（少し時間がかかります）"):
-        chuna_values = [cached_cal_min_chuna(s,tuple(coe)) for s in scores]
-
-    # === グラフ描画 ===
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(scores, chuna_values, marker="o")
-
-    ax.set_xlabel("目標スコア")
-    ax.set_ylabel("平均チュナ消費量")
-    ax.set_title("目標スコアと必要チュナ量の関係")
-
-    ax.grid(True)
-    st.pyplot(fig)
-
-    # === テーブル（おまけ・数値確認用） ===
-    df = pd.DataFrame({
-        "目標スコア": scores,
-        "平均チュナ消費量": [int(x) for x in chuna_values]
-    })
-
-    st.dataframe(df, use_container_width=True)
-    
-    # =========================
-    # ダウンロード
-    # =========================
-    st.subheader("⬇ ダウンロード")
-
-    csv = df.to_csv(index=False).encode("utf-8-sig")
-
-    st.download_button(
-        label="CSVをダウンロード",
-        data=csv,
-        file_name="score_chuna_table.csv",
-        mime="text/csv"
-    )
 
         
 
