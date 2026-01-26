@@ -832,54 +832,68 @@ CHAR_PRESETS = {
         },
 }
 
+# --- コールバック関数: プリセット変更時に値を更新する ---
+def update_presets():
+    # 選択されたキャラ名を取得
+    selected = st.session_state["char_selector"]
+    vals = CHAR_PRESETS[selected]["coe"]
+    
+    # Session Stateの値を直接書き換える
+    st.session_state["ni_cr"] = vals[0]
+    st.session_state["ni_cd"] = vals[1]
+    st.session_state["ni_atk"] = vals[2]
+    st.session_state["ni_d1"] = vals[3]
+    st.session_state["ni_d2"] = vals[4]
+    st.session_state["ni_er"] = vals[5]
+    st.session_state["ni_flat"] = vals[6]
+
 # --- サイドバー実装 ---
 with st.sidebar:
-    st.header("1. スコア計算の設定")
+    st.header("スコア計算の設定")
     
-    # プリセット選択プルダウン
+    # プリセット選択（on_changeで関数を呼び出す）
     selected_char = st.selectbox(
         "キャラ・プリセット選択",
-        options=list(CHAR_PRESETS.keys())
+        options=list(CHAR_PRESETS.keys()),
+        key="char_selector",
+        on_change=update_presets  # ←これが重要です
     )
     
-    # 選択データを取り出す
+    # 初回起動時などのために現在の選択データを取得
     setting = CHAR_PRESETS[selected_char]
-    vals = setting["coe"]
     
+    # --- 初期値の設定 ---
+    # まだSession Stateにキーがない場合（初回読み込み時）のみ初期値をセットする
+    if "ni_cr" not in st.session_state:
+        # 初回はカスタム(あるいは一番上の項目)の値を入れる
+        init_vals = setting["coe"]
+        st.session_state["ni_cr"] = init_vals[0]
+        st.session_state["ni_cd"] = init_vals[1]
+        st.session_state["ni_atk"] = init_vals[2]
+        st.session_state["ni_d1"] = init_vals[3]
+        st.session_state["ni_d2"] = init_vals[4]
+        st.session_state["ni_er"] = init_vals[5]
+        st.session_state["ni_flat"] = init_vals[6]
+
     st.caption("各サブステータスのスコア係数")
     
     coe_input = [0.0] * 7
     
-    # 基礎ステータス (ラベルは固定)
-    coe_input[0] = st.number_input("クリティカル", value=float(vals[0]), step=0.1, format="%.1f")
-    coe_input[1] = st.number_input("クリダメ", value=float(vals[1]), step=0.1, format="%.1f")
-    coe_input[2] = st.number_input("攻撃力％", value=float(vals[2]), step=0.1, format="%.1f")
+    # keyを指定することで、update_presets関数から値を操作できるようにする
+    coe_input[0] = st.number_input("クリティカル", step=0.1, format="%.1f", key="ni_cr")
+    coe_input[1] = st.number_input("クリダメ", step=0.1, format="%.1f", key="ni_cd")
+    coe_input[2] = st.number_input("攻撃力％", step=0.1, format="%.1f", key="ni_atk")
     
     st.divider()
     
-    # ダメージアップ系 (ラベルが動的に変わる)
-    # 選択したキャラに応じて「共鳴スキル」などの名前に変化します
-    coe_input[3] = st.number_input(
-        setting["d1_label"], 
-        value=float(vals[3]), 
-        step=0.1, 
-        format="%.1f",
-        key="d1_input" # キー固定で挙動を安定させる
-    )
-    
-    coe_input[4] = st.number_input(
-        setting["d2_label"], 
-        value=float(vals[4]), 
-        step=0.1, 
-        format="%.1f",
-        key="d2_input"
-    )
+    # ラベルは動的、値はkey経由で管理
+    coe_input[3] = st.number_input(setting["d1_label"], step=0.1, format="%.1f", key="ni_d1")
+    coe_input[4] = st.number_input(setting["d2_label"], step=0.1, format="%.1f", key="ni_d2")
     
     st.divider()
     
-    # その他 (ラベル固定)
-    coe_input[5] = st.number_input("共鳴効率", value=float(vals[5]), step=0.1, format="%.1f")
-    coe_input[6] = st.number_input("攻撃実数", value=float(vals[6]), step=0.01, format="%.2f")
+    coe_input[5] = st.number_input("共鳴効率", step=0.1, format="%.1f", key="ni_er")
+    coe_input[6] = st.number_input("攻撃実数", step=0.01, format="%.2f", key="ni_flat")
 
     # ロジックに渡す係数リストを更新
     coe = coe_input
