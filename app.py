@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from functools import lru_cache
 import copy
 
 #チュナ最小になる戦略（新）(レコードの消費量も計算)
@@ -27,6 +28,7 @@ at_n_weight=[0.269,0.385,0.325,0.021,0,0,0,0]
 subst_list=[cr_list,cd_list,at_p_list,damage1_list,damage2_list,efficiency_list,at_n_list]
 subst_weight=[cr_weight,cd_weight,at_p_weight,damage1_weight,damage2_weight,efficiency_weight,at_n_weight]
 record_list=[1100,3025,5775,9875,15875]
+INF = 10**18
 
 sub_names = [
     "クリティカル",
@@ -44,6 +46,95 @@ def cal_score_now(substatus,coe):#現在スコア
         s+=substatus[i]*coe[i]
     return s
 
+def possible_next_states(substatus, t, coe):
+    """
+    サブステ13種対応・正確確率モデル
+    (next_substatus, probability) を列挙
+    """
+    next_states = []
+
+    # 未取得サブステの数
+    empty_idx = [i for i, v in enumerate(substatus) if v == 0]
+    n = 8 + t
+    #不要サブステの内の未取得サブステの数
+    m = 8 - len(empty_idx) + t
+    
+    p_choose_type = 1 / n  # 種類抽選は等確率
+    
+    #不要サブステ（一括で処理）
+    sub_next = list(substatus)
+    next_states.append(
+        (tuple(sub_next),p_choose_type * m)
+    )
+
+    for i in empty_idx:
+        # 有効サブステ（スコアに寄与しない）
+        if coe[i] == 0:
+            sub_next = list(substatus)
+            sub_next[i] = 1 #スコアはどうせ0なので0以外の適当な数字を入れて抽選済みなことを示す
+            next_states.append(
+                (tuple(sub_next), p_choose_type)
+            )
+            continue
+
+        # 有効サブステ（スコアに寄与）
+        for val, w in zip(subst_list[i], subst_weight[i]):
+            sub_next = list(substatus)
+            sub_next[i] = val
+            next_states.append(
+                (tuple(sub_next), p_choose_type * w)
+            )
+
+    return next_states
+
+
+@lru_cache(None)
+def expected_chuna(substatus, t, target_score, ave_chuna, coe):
+    """
+    状態 (substatus, t) から目標スコアに到達するための
+    期待チュナ消費量を返す
+    """
+    score_now = cal_score_now(substatus, coe)
+
+    # 成功
+    if score_now >= target_score:
+        return 0, 1, True
+
+    # もう強化できない
+    if t == 0:
+        return INF, 0, False
+
+    total_prob = 0.0
+    total_cost = 0.0
+
+    for sub_next, prob in possible_next_states(substatus, t, coe):
+        E_next, prob_success, ok = expected_chuna(
+            sub_next,
+            t - 1,
+            target_score,
+            ave_chuna,
+            coe
+        )
+
+        if not ok:
+            continue
+
+        if E_next > ave_chuna:
+            continue  # 枝刈り（今のロジックと同じ）
+
+        total_prob += prob * prob_success
+        total_cost += prob * prob_success * E_next
+
+    if total_prob == 0:
+        return INF, 0, False
+
+    # 強化1回分の固定コストを加算
+    expected = (7 + total_cost) / total_prob
+    
+    return expected, total_prob, True
+
+def cal_ave_chuna_fast(target_score,times,substatus,ave_chuna,coe):
+    return expected_chuna(substatus,5-times,target_score,ave_chuna,coe)[0] + 3 * (5-times)
 
 def number_effective_subst(coe):
     n=0
@@ -247,10 +338,10 @@ def cal_min_chuna(score,coe):#入力スコア以上の音骸を一つ作るの�
     chuna1=4000
     chuna2=0
     while abs(chuna1-chuna2)>=1:
-        a=cal_ave_chuna0(score,chuna1,coe)[0]
+        a=cal_ave_chuna_fast(score,0,[0,0,0,0,0,0,0],chuna1,coe)
         if a==0:
             chuna2=300000
-            chuna1=cal_ave_chuna0(score,300000,coe)[0]
+            chuna1=cal_ave_chuna_fast(score,0,[0,0,0,0,0,0,0],300000,coe)
         else:    
             chuna2=chuna1
             chuna1=a
@@ -258,14 +349,9 @@ def cal_min_chuna(score,coe):#入力スコア以上の音骸を一つ作るの�
 
 def judge_continue(score,times,substatus,ave_chuna,coe):#強化続行判定
     chuna=0
-    if times==1:
-        chuna=cal_ave_chuna1(score,substatus,ave_chuna,coe)[0]
-    elif times==2:
-        chuna=cal_ave_chuna2(score,substatus,ave_chuna,coe)[0]
-    elif times==3:
-        chuna=cal_ave_chuna3(score,substatus,ave_chuna,coe)[0]
-    elif times==4:
-        chuna=cal_ave_chuna4(score,substatus,coe)[0]
+    if times==0 or times==1 or times==2 or times==3 or times==4:
+        chuna=cal_ave_chuna_fast(score,times,substatus,ave_chuna,coe)[0]
+
     else:
         return -1,"error"
     
@@ -276,20 +362,6 @@ def judge_continue(score,times,substatus,ave_chuna,coe):#強化続行判定
     else:
         return int(chuna),"強化非推奨"
    
-def cal_ave_chuna(score,times,substatus,ave_chuna,coe):
-    if times==0:
-        return cal_ave_chuna0(score,ave_chuna,coe)
-    elif times==1:
-        return cal_ave_chuna1(score,substatus,ave_chuna,coe)
-    elif times==2:
-        return cal_ave_chuna2(score,substatus,ave_chuna,coe)
-    elif times==3:
-        return cal_ave_chuna3(score,substatus,ave_chuna,coe)
-    elif times==4:
-        return cal_ave_chuna4(score,substatus,coe)
-    else:
-        print("error")
-
 def judge_continue_all(score,times,ave_chuna,coe):
     results = []
     a=1
@@ -300,12 +372,12 @@ def judge_continue_all(score,times,ave_chuna,coe):
     memory=np.zeros((1,7))+8
     
     substatus=[0]*7
-    chuna=cal_ave_chuna(score,times,substatus,ave_chuna,coe)
+    chuna=cal_ave_chuna_fast(score,times,substatus,ave_chuna,coe)
     
-    if chuna[1]>0 and chuna[0]<=ave_chuna*a:
+    if chuna<=ave_chuna*a:
         results.append({
             "substatus": substatus.copy(),
-            "chuna": chuna[0],
+            "chuna": chuna,
             "score": cal_score_now(substatus,coe)
         })
         return results
@@ -319,15 +391,12 @@ def judge_continue_all(score,times,ave_chuna,coe):
                 break
             substatus=[0]*7
             substatus[i]=subst_list0[i][j+1]
-            chuna=cal_ave_chuna(score,times,substatus,ave_chuna,coe)
+            chuna=cal_ave_chuna_fast(score,times,substatus,ave_chuna,coe)
 
-            if chuna[1]==0:
-                continue
-
-            if chuna[0]<=ave_chuna*a:
+            if chuna<=ave_chuna*a:
                 results.append({
                     "substatus": substatus.copy(),
-                    "chuna": chuna[0],
+                    "chuna": chuna,
                     "score": cal_score_now(substatus,coe)
                 })
 
@@ -367,14 +436,12 @@ def judge_continue_all(score,times,ave_chuna,coe):
                     substatus=[0]*7
                     substatus[i]=subst_list0[i][j+1]
                     substatus[k]=subst_list0[k][l+1]
-                    chuna=cal_ave_chuna(score,times,substatus,ave_chuna,coe)
-                    if chuna[1]==0:
-                        continue
+                    chuna=cal_ave_chuna_fast(score,times,substatus,ave_chuna,coe)
                     
-                    if chuna[0]<=ave_chuna*a:
+                    if chuna<=ave_chuna*a:
                         results.append({
                             "substatus": substatus.copy(),
-                            "chuna": chuna[0],
+                            "chuna": chuna,
                             "score": cal_score_now(substatus,coe)
                         })
 
@@ -430,14 +497,12 @@ def judge_continue_all(score,times,ave_chuna,coe):
                             substatus[i]=subst_list0[i][j+1]
                             substatus[k]=subst_list0[k][l+1]
                             substatus[m]=subst_list0[m][n+1]
-                            chuna=cal_ave_chuna(score,times,substatus,ave_chuna,coe)
-                            if chuna[1]==0:
-                                continue
+                            chuna=cal_ave_chuna_fast(score,times,substatus,ave_chuna,coe)
                             
-                            if chuna[0]<=ave_chuna*a:
+                            if chuna<=ave_chuna*a:
                                 results.append({
                                     "substatus": substatus.copy(),
-                                    "chuna": chuna[0],
+                                    "chuna": chuna,
                                     "score": cal_score_now(substatus,coe)
                                 })
 
@@ -505,14 +570,12 @@ def judge_continue_all(score,times,ave_chuna,coe):
                                     substatus[k]=subst_list0[k][l+1]
                                     substatus[m]=subst_list0[m][n+1]
                                     substatus[o]=subst_list0[o][p+1]
-                                    chuna=cal_ave_chuna(score,times,substatus,ave_chuna,coe)
-                                    if chuna[1]==0:
-                                        continue
+                                    chuna=cal_ave_chuna_fast(score,times,substatus,ave_chuna,coe)
                             
-                                    if chuna[0]<=ave_chuna*a:
+                                    if chuna<=ave_chuna*a:
                                         results.append({
                                             "substatus": substatus.copy(),
-                                            "chuna": chuna[0],
+                                            "chuna": chuna,
                                             "score": cal_score_now(substatus,coe)
                                         })
 
