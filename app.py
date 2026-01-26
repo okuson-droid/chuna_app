@@ -995,7 +995,7 @@ with tab1:
             with st.spinner("計算中..."):
                 max_s = cal_max_score(coe)
                 calc_score = cal_max_score_by_chuna(limit_chuna, coe, max_s)
-                st.session_state['target_score'] = calc_score
+                st.session_state['target_score'] =int(calc_score)
             
                 # そのスコアに対する正確な必要コストを再計算
                 req_chuna = cal_min_chuna(calc_score, coe)
