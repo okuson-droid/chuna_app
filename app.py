@@ -1017,7 +1017,7 @@ with tab1:
                 
                 st.session_state['ave_chuna'] = c
                 st.session_state['res_c'] = c
-                st.session_state['res_r'] = r
+                st.session_state['res_r'] = r / 5000
                 st.session_state['res_b'] = 1 / prob if prob > 0 else INF
                 st.toast("計算完了")
 
