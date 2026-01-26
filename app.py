@@ -910,7 +910,7 @@ cols = st.columns(3)
 for idx, i in enumerate(active_indices):
     with cols[idx % 3]:
         substatus[i] = substat_slider(
-            sub_names[i],
+            current_sub_names[i],
             subst_list[i],
             enabled=True,
             key=f"step1_substat_{i}"
