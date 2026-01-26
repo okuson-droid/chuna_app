@@ -1132,18 +1132,19 @@ with tab2:
                     else:
                         st.write(f"新品から作るより **{abs(diff):.1f}** チュナ余計にかかる見込みです。")
 
-# --- TAB 3: 最小ライン一覧 (機能置換) ---
+# --- TAB 3: 最小ライン一覧 (修正版) ---
 with tab3:
     st.header("これ以上強化していい最小ライン一覧")
-    st.info("「このサブステが付いたら強化を続けても良い（損ではない）」というギリギリのラインを一覧表示します。")
+    st.info("「このサブステが付いたら強化を続けても良い（損ではない）」という組み合わせを表示します。")
 
     if 'target_score' not in st.session_state:
         st.error("先にタブ①で目標スコアを計算してください")
     else:
-        search_times = st.radio("検索する強化回数", [1, 2], horizontal=True, help="3以上は計算量が多いため省略")
+        # 1〜4回を選択可能に変更
+        search_times = st.selectbox("検索する強化回数", [1, 2, 3, 4], help="回数が多いと計算に時間がかかります")
         
         if st.button("一覧を生成"):
-            with st.spinner("探索中... (時間がかかる場合があります)"):
+            with st.spinner("探索中... (強化回数が多いと時間がかかります)"):
                 valid_rows = []
                 ave = st.session_state['ave_chuna']
                 score_target = st.session_state['target_score']
@@ -1156,11 +1157,18 @@ with tab3:
                     if count == 0:
                         # 判定
                         cost, msg = judge_continue(score_target, search_times, current_state, ave, coe)
-                        if "推奨" in msg or "続行可能" in msg:
-                            row = {current_sub_names[i]: val for i, val in enumerate(current_state) if val > 0}
+                        
+                        # 「非推奨」以外（推奨 or 続行可能）のみ追加
+                        if "非推奨" not in msg:
+                            row = {}
+                            # 値が入っているものだけ格納（表示用）
+                            # ただし、カラム固定のため、0でもあとで埋める必要があるが、
+                            # ここでは全データを入れておく
+                            for i in range(7):
+                                row[current_sub_names[i]] = current_state[i]
+                            
                             row["スコア"] = cal_score_now(current_state, coe)
-                            row["期待コスト"] = int(cost)
-                            row["判定"] = msg
+                            row["消費チュナ"] = int(cost)
                             valid_rows.append(row)
                         return
 
@@ -1170,14 +1178,14 @@ with tab3:
 
                     real_idx = valid_idx[idx_in_valid]
                     
-                    # 1. このサブステを選ばない場合
+                    # 1. このサブステを選ばない場合 (次のサブステへ)
                     search_combos(idx_in_valid + 1, list(current_state), count)
                     
                     # 2. このサブステを選ぶ場合 (各値を試す)
                     for val in subst_list[real_idx]:
                         new_state = list(current_state)
                         new_state[real_idx] = val
-                        # 同じサブステ種類は1回しかつかないと仮定して次に進む
+                        # 次の階層へ (countを減らす, idxも進める=重複なし)
                         search_combos(idx_in_valid + 1, new_state, count - 1)
 
                 # 実行
@@ -1185,14 +1193,34 @@ with tab3:
                 
                 if valid_rows:
                     df = pd.DataFrame(valid_rows)
-                    # スコアでソート
-                    df = df.sort_values("スコア").reset_index(drop=True)
+                    
+                    # --- カラム整理 ---
+                    # 1. 基本の並び順定義
+                    base_order = [
+                        "クリティカル", "クリダメ", "攻撃力％",
+                        setting["d1_label"], setting["d2_label"],
+                        "共鳴効率", "攻撃実数"
+                    ]
+                    # 2. 係数が0より大きいものだけ抽出
+                    active_cols = [name for i, name in enumerate(base_order) if coe[i] > 0]
+                    
+                    # 3. 最終的な表示カラム (スコアと消費チュナを追加)
+                    final_cols = active_cols + ["スコア", "消費チュナ"]
+                    
+                    # 4. DataFrameをフィルタリングして並べ替え
+                    df_display = df[final_cols]
+                    
+                    # 5. スコアでソート
+                    df_display = df_display.sort_values("スコア").reset_index(drop=True)
+                    
+                    # 6. 0の値を空白やハイフンにする等の整形（今回はそのまま0表示でOKならフォーマットのみ）
+                    # 0を非表示にしたい場合は別途処理が必要ですが、
+                    # 「係数が0の列は排除」済みなので、有効列の中の0（未取得）はそのまま0表示とします。
                     
                     st.write(f"**強化回数 {search_times}回目** の続行可能ライン ({len(df)}件)")
-                    st.dataframe(df.style.format({"スコア": "{:.2f}"}))
+                    st.dataframe(df_display.style.format("{:.2f}").format({"消費チュナ": "{:.0f}"}))
                 else:
-                    st.warning("条件を満たす組み合わせが見つかりませんでした。")
-        
+                    st.warning("条件を満たす組み合わせが見つかりませんでした。（すべて非推奨です）")
 
 
 
