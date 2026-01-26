@@ -7,8 +7,6 @@ import copy
 
 #チュナ最小になる戦略（新）(レコードの消費量も計算)
 
-coe=[2,1,1,0,0,0,0.1]
-
 cr_list=[6.3, 6.9, 7.5, 8.1, 8.7, 9.3, 9.9, 10.5]
 cd_list=[12.6, 13.8, 15.0, 16.2, 17.4, 18.6, 19.8, 21.0]
 at_p_list=[6.4, 7.1, 7.9, 8.6, 9.4, 10.1, 10.9, 11.6]
@@ -29,16 +27,6 @@ subst_list=[cr_list,cd_list,at_p_list,damage1_list,damage2_list,efficiency_list,
 subst_weight=[cr_weight,cd_weight,at_p_weight,damage1_weight,damage2_weight,efficiency_weight,at_n_weight]
 record_list=[1100,3025,5775,9875,15875]
 INF = 10**18
-
-sub_names = [
-    "クリティカル",
-    "クリダメ",
-    "攻撃力％",
-    "ダメアップ1",
-    "ダメアップ2",
-    "共鳴効率",
-    "攻撃実数"
-]
 
 def cal_score_now(substatus,coe):#現在スコア
     s=0
@@ -984,17 +972,6 @@ else:
 # 4. メインエリア (動的ラベル適用版)
 # ==========================================
 
-# --- 動的ラベルリストの生成 ---
-# サイドバーで選択中の `setting` ("d1_label", "d2_label") を使用してリストを作成
-current_sub_names = [
-    "クリティカル",
-    "クリダメ",
-    "攻撃力％",
-    setting["d1_label"],  # サイドバーの選択に合わせて変化
-    setting["d2_label"],  # サイドバーの選択に合わせて変化
-    "共鳴効率",
-    "攻撃実数"
-]
 
 # --- タブ表示 ---
 tab1, tab2, tab3 = st.tabs(["① 目標設定", "② 続行判定", "③ 最小ライン一覧"])
@@ -1008,11 +985,11 @@ if 'ave_chuna' not in st.session_state:
 # --- TAB 1: 目標設定 ---
 with tab1:
     st.header("目標スコアの算出および、その目標スコア達成のための素材の消費量を表示")
-    st.info("自分が許容できるコスト（チュナ量）から、目指すべき現実的なスコアを逆算します。目標スコアが決まっている人は直接入力してください")
+    st.info("自分が許容できるコスト（チュナ量）から、目指すべき現実的なスコアを逆算します。目標スコアが決まっている人は直接入力してください。")
     
     col1, col2 = st.columns(2)
     with col1:
-        limit_chuna = st.number_input("使用可能なチュナの上限", value=500, step=100)
+        limit_chuna = st.number_input("使用可能なチュナの上限", min_value=1,value=500, step=100)
     
         if st.button("目標スコアを計算する"):
             with st.spinner("計算中..."):
@@ -1025,13 +1002,13 @@ with tab1:
                 c,prob,r = cal_ave_chuna0(calc_score,req_chuna,coe)
                 st.session_state['ave_chuna'] = c
                 st.session_state['res_c'] = c
-                st.session_state['res_r'] = r
+                st.session_state['res_r'] = r / 5000
                 st.session_state['res_b'] = 1 / prob if prob > 0 else INF
         
-            st.success(f"推奨目標スコア: **{calc_score:.2f}**")
+            st.success(f"推奨目標スコア: **{calc_score:.0f}**")
             
     with col2:
-        val = st.number_input("目標スコアを直接入力", value=st.session_state['target_score'], step=1.0)
+        val = st.number_input("目標スコアを直接入力", value=st.session_state['target_score'], step=1)
         if st.button("素材の消費量を計算"):
             st.session_state['target_score'] = val
             with st.spinner("計算中..."):
@@ -1049,12 +1026,13 @@ st.divider()
 # リソース消費量の表示
 if 'res_c' in st.session_state:
     st.subheader("素材消費量（期待値）")
+    
     m1, m2, m3 = st.columns(3)
     m1.metric("チュナ消費量", f"{int(st.session_state['res_c']):,}")
-    m2.metric("レコード消費量", f"{int(st.session_state['res_r']):,}")
+    m2.metric("レコード消費量(金レコ換算)", f"{int(st.session_state['res_r']):,}")
         
     b_val = st.session_state['res_b']
-    b_str = f"{b_val:.1f} 個" if b_val < 10**10 else "∞"
+    b_str = f"{b_val:.0f} 個" if b_val < 10**10 else "∞"
     m3.metric("音骸素体消費量", b_str)
 else:
     st.caption("※計算ボタンを押すとここに消費量が表示されます")
@@ -1063,7 +1041,7 @@ else:
 # --- TAB 2: 続行判定 (ラベル修正) ---
 with tab2:
     st.header("強化続行・撤退の判定")
-    st.markdown(f"目標スコア **{st.session_state['target_score']:.2f}** を目指す場合の判定を行います。")
+    st.markdown(f"目標スコア **{st.session_state['target_score']:.0f}** を目指す場合の判定を行います。")
     
     # 入力フォーム
     col_input, col_res = st.columns([1, 1])
@@ -1071,7 +1049,7 @@ with tab2:
     with col_input:
         st.subheader("現在の音骸ステータス")
         
-        current_times = st.slider("現在のサブステ開放数（強化回数）", 0, 4, 1)
+        current_times = st.slider("強化回数（サブステがいくつ開けられているか）", 0, 4, 1)
         
         current_sub = [0.0] * 7
         
@@ -1094,7 +1072,7 @@ with tab2:
             if val > 0: input_count += 1
             
         if input_count > current_times:
-            st.error(f"入力されたサブステ数({input_count})が開放数({current_times})を超えています。")
+            st.error(f"入力されたサブステ数({input_count})が強化回数({current_times})を超えています。")
 
     with col_res:
         st.subheader("判定結果")
@@ -1119,22 +1097,22 @@ with tab2:
                     st.markdown("このまま強化を続けるのが期待値的に**お得**です。")
                 elif "続行可能" in msg:
                     st.warning(f"## {msg}")
-                    st.markdown("新品を強化するのとあまり変わりません。")
+                    st.markdown("レベル0の音骸を強化するのとあまり変わりません。")
                 else:
                     st.error(f"## {msg}")
-                    st.markdown("これ以上強化すると期待値的に**損**です。次の素材に行きましょう。")
+                    st.markdown("これ以上強化すると期待値的に**損**です。次の音骸に行きましょう。")
                 
                 if cost < INF:
                     st.write(f"ゴールまでの期待コスト: **{cost:.1f}** チュナ")
                     diff = st.session_state['ave_chuna'] - cost
                     if diff > 0:
-                        st.write(f"新品から作るより **{diff:.1f}** チュナ節約できる見込みです。")
+                        st.write(f"レベル0音骸を育成するより平均 **{diff:.1f}** チュナ分有利です。")
                     else:
-                        st.write(f"新品から作るより **{abs(diff):.1f}** チュナ余計にかかる見込みです。")
+                        st.write(f"レベル0音骸を育成するより平均 **{abs(diff):.1f}** チュナ分余計にかかる見込みです。")
 
 # --- TAB 3: 最小ライン一覧 (judge_continue_all 使用) ---
 with tab3:
-    st.header("これ以上強化していい最小ライン一覧")
+    st.header("これ以上なら強化続行するべき最小ライン一覧")
     st.info("「このサブステが付いたら強化を続けても良い」という最低ラインの組み合わせを表示します。")
     st.caption("※上位互換となる（より強い）組み合わせは、自動的に省略されています。")
 
