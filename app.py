@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from functools import lru_cache
 import copy
 
 #チュナ最小になる戦略（新）(レコードの消費量も計算)
@@ -39,7 +38,7 @@ sub_names = [
     "共鳴効率",
     "攻撃実数"
 ]
-@lru_cache(None)
+
 def cal_score_now(substatus,coe):#現在スコア
     s=0
     for i in range(7):
@@ -132,8 +131,6 @@ def expected_chuna(substatus, t, target_score, ave_chuna, coe):
     return expected, total_prob, True
 
 def cal_ave_chuna_fast(target_score,times,substatus,ave_chuna,coe):
-    substatus = tuple(substatus)
-    coe = tuple(coe)
     return expected_chuna(substatus,5-times,target_score,ave_chuna,coe)[0] + 3 * (5-times)
 
 def number_effective_subst(coe):
