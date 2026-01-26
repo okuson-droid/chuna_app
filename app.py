@@ -39,7 +39,7 @@ sub_names = [
     "共鳴効率",
     "攻撃実数"
 ]
-
+@lru_cache(None)
 def cal_score_now(substatus,coe):#現在スコア
     s=0
     for i in range(7):
@@ -87,8 +87,6 @@ def possible_next_states(substatus, t, coe):
 
     return next_states
 
-
-@lru_cache(None)
 def expected_chuna(substatus, t, target_score, ave_chuna, coe):
     """
     状態 (substatus, t) から目標スコアに到達するための
@@ -134,6 +132,8 @@ def expected_chuna(substatus, t, target_score, ave_chuna, coe):
     return expected, total_prob, True
 
 def cal_ave_chuna_fast(target_score,times,substatus,ave_chuna,coe):
+    substatus = tuple(substatus)
+    coe = tuple(coe)
     return expected_chuna(substatus,5-times,target_score,ave_chuna,coe)[0] + 3 * (5-times)
 
 def number_effective_subst(coe):
@@ -350,7 +350,7 @@ def cal_min_chuna(score,coe):#入力スコア以上の音骸を一つ作るの�
 def judge_continue(score,times,substatus,ave_chuna,coe):#強化続行判定
     chuna=0
     if times==0 or times==1 or times==2 or times==3 or times==4:
-        chuna=cal_ave_chuna_fast(score,times,substatus,ave_chuna,coe)[0]
+        chuna=cal_ave_chuna_fast(score,times,substatus,ave_chuna,coe)
 
     else:
         return -1,"error"
