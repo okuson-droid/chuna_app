@@ -1132,11 +1132,11 @@ with tab2:
                     else:
                         st.write(f"新品から作るより **{abs(diff):.1f}** チュナ余計にかかる見込みです。")
 
-# --- TAB 3: 最小ライン一覧 (フィルタリング・スタイル適用版) ---
+# --- TAB 3: 最小ライン一覧 (修正版) ---
 with tab3:
-    st.header("これ以上強化していい最小ライン一覧")
-    st.info("「このサブステが付いたら強化を続けても良い」という**最低ライン**の組み合わせを表示します。")
-    st.caption("※上位互換となる（より強い）組み合わせは、この表では省略されます。")
+    st.header("これ以上なら強化続行すべき最小ライン一覧")
+    st.info("「このサブステが付いたら強化を続けても良い」という最低ラインの組み合わせを表示します。")
+    st.caption("※より強力な組み合わせ（上位互換）は、この表では省略されます。")
 
     if 'target_score' not in st.session_state:
         st.error("先にタブ①で目標スコアを計算してください")
@@ -1157,11 +1157,9 @@ with tab3:
                         cost, msg = judge_continue(score_target, search_times, current_state, ave, coe)
                         if "非推奨" not in msg:
                             row = {}
-                            # 後でフィルタリングしやすいように全データを持たせる
                             row["_raw_state"] = list(current_state) 
                             row["スコア"] = cal_score_now(current_state, coe)
                             row["消費チュナ"] = int(cost)
-                            # 表示用データも埋めておく
                             for i in range(7):
                                 row[current_sub_names[i]] = current_state[i]
                             valid_rows.append(row)
@@ -1171,7 +1169,11 @@ with tab3:
                         return
 
                     real_idx = valid_idx[idx_in_valid]
+                    
+                    # このステータスを選ばない分岐
                     search_combos(idx_in_valid + 1, list(current_state), count)
+                    
+                    # このステータスを選ぶ分岐
                     for val in subst_list[real_idx]:
                         new_state = list(current_state)
                         new_state[real_idx] = val
@@ -1184,38 +1186,33 @@ with tab3:
                 else:
                     df = pd.DataFrame(valid_rows)
                     
-                    # --- 2. フィルタリング (上位互換の削除) ---
-                    # 「同じ構成要素」を持つ行の中で、値がより大きいだけの行は「冗長」として削除する
-                    # 例: クリ6.9でOKなら、クリ10.5は表示しない
+                    # --- 2. フィルタリング (厳密な上位互換の削除) ---
+                    # 「比較対象(kept)」のすべてのサブステ値が「現在(current)」のサブステ値以下である場合、
+                    # kept（弱い方）がOKなら current（強い方）は冗長なので current を削除する。
+                    # 今回は「0」も値として比較に含める。（0 <= 12.6 はTrue）
                     
-                    # スコア順（昇順）に並べることで、ギリギリのライン（弱い方）が先に来る
+                    # スコア順に並べることで、弱い（最低ラインに近い）ものが先に来る
                     df = df.sort_values("スコア")
                     
                     final_indices = []
-                    
-                    # 行データをリスト化して比較 (DataFrameのiterrowsは遅いため)
                     rows_data = df.to_dict('records')
                     
-                    # 有効なカラムインデックス
+                    # coe > 0 のインデックス（有効ステータス）
                     active_indices = [i for i, c in enumerate(coe) if c > 0]
                     
                     for i, current in enumerate(rows_data):
                         is_redundant = False
                         current_state = current["_raw_state"]
                         
-                        # 既に採用された「より弱い（または同等の）組み合わせ」と比較
                         for kept_idx in final_indices:
                             kept = rows_data[kept_idx]
                             kept_state = kept["_raw_state"]
                             
-                            # すべての有効サブステにおいて kept <= current か確認
-                            # かつ、0の場所（サブステの種類）が一致しているか
+                            # 条件: すべての有効ステータスにおいて kept <= current
+                            # これにより、[クリ6.3, 他0] がリストにあれば、
+                            # [クリ6.3, クリダメ12.6] は (6.3<=6.3 and 0<=12.6) となり冗長判定される
                             is_dominated = True
                             for idx in active_indices:
-                                # 構成が違う（片方0で片方0じゃない）場合は比較対象外
-                                if (kept_state[idx] == 0) != (current_state[idx] == 0):
-                                    is_dominated = False
-                                    break
                                 if kept_state[idx] > current_state[idx]:
                                     is_dominated = False
                                     break
@@ -1227,7 +1224,6 @@ with tab3:
                         if not is_redundant:
                             final_indices.append(i)
                             
-                    # フィルタリング適用
                     df_filtered = df.iloc[final_indices].reset_index(drop=True)
                     
                     # --- 3. 表示用整形 ---
@@ -1236,26 +1232,28 @@ with tab3:
                         setting["d1_label"], setting["d2_label"],
                         "共鳴効率", "攻撃実数"
                     ]
-                    # 係数>0のカラムのみ抽出
                     active_cols = [name for i, name in enumerate(base_order) if coe[i] > 0]
                     final_cols = active_cols + ["スコア", "消費チュナ"]
                     
-                    df_display = df_filtered[final_cols]
+                    df_display = df_filtered[final_cols].round(1) # データ自体を丸める
                     
                     # --- 4. スタイル適用 ---
-                    # 0の値を目立たなくする関数
                     def style_zeros(val):
                         if isinstance(val, (int, float)) and val == 0:
-                            return 'color: #d0d0d0; font-weight: 300;' # 薄いグレー
+                            return 'color: #d0d0d0; font-weight: 300;'
                         return ''
-
+                    
+                    # Column Config でフォーマットを厳格に指定
+                    col_config = {}
+                    for col in active_cols + ["スコア"]:
+                        col_config[col] = st.column_config.NumberColumn(format="%.1f")
+                    
                     st.write(f"**強化回数 {search_times}回目** の続行可能最小ライン ({len(df_display)}件)")
                     
                     st.dataframe(
-                        df_display.style
-                        .format("{:.1f}") # 小数点1桁
-                        .format({"消費チュナ": "{:.0f}"}) # チュナは整数
-                        .map(style_zeros) # 0を薄くする (pandasのバージョンによってはapplymap)
+                        df_display.style.map(style_zeros),
+                        column_config=col_config,
+                        use_container_width=True
                     )
 
 
