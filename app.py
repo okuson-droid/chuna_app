@@ -39,7 +39,7 @@ sub_names = [
     "共鳴効率",
     "攻撃実数"
 ]
-@lru_cache(None)
+
 def cal_score_now(substatus,coe):#現在スコア
     s=0
     for i in range(7):
@@ -86,7 +86,7 @@ def possible_next_states(substatus, t, coe):
             )
 
     return next_states
-
+@lru_cache(None)
 def expected_chuna(substatus, t, target_score, ave_chuna, coe):
     """
     状態 (substatus, t) から目標スコアに到達するための
