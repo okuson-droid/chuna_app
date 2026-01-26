@@ -1008,7 +1008,7 @@ with tab1:
             st.success(f"推奨目標スコア: **{calc_score:.0f}**")
             
     with col2:
-        val = st.number_input("目標スコアを直接入力", value=st.session_state['target_score'], step=1)
+        val = st.number_input("目標スコアを直接入力", value=int(st.session_state['target_score']), step=1, format="%d")
         if st.button("素材の消費量を計算"):
             st.session_state['target_score'] = val
             with st.spinner("計算中..."):
