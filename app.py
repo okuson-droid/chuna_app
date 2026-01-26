@@ -997,7 +997,7 @@ current_sub_names = [
 ]
 
 # --- タブ表示 ---
-tab1, tab2, tab3 = st.tabs(["① 目標設定", "② 続行判定", "③ 詳細データ"])
+tab1, tab2, tab3 = st.tabs(["① 目標設定", "② 続行判定", "③ 最小ライン一覧"])
 
 # セッションステート初期化
 if 'target_score' not in st.session_state:
@@ -1007,37 +1007,57 @@ if 'ave_chuna' not in st.session_state:
 
 # --- TAB 1: 目標設定 ---
 with tab1:
-    st.header("目標スコアの算出")
-    st.info("まずは、自分が許容できるコスト（チュナ量）から、目指すべき現実的なスコアを逆算しましょう。")
+    st.header("目標スコアの算出および、その目標スコア達成のための素材の消費量を表示")
+    st.info("自分が許容できるコスト（チュナ量）から、目指すべき現実的なスコアを逆算。目標スコアが決まっている人は直接入力")
     
     col1, col2 = st.columns(2)
     with col1:
-        limit_chuna = st.number_input("使用可能なチュナの上限（期待値）", value=500, step=100)
+        limit_chuna = st.number_input("使用可能なチュナの上限", value=500, step=100)
     
-    if st.button("目標スコアを計算する"):
-        with st.spinner("計算中..."):
-            max_s = cal_max_score(coe)
-            calc_score = cal_max_score_by_chuna(limit_chuna, coe, max_s)
-            st.session_state['target_score'] = calc_score
+        if st.button("目標スコアを計算する"):
+            with st.spinner("計算中..."):
+                max_s = cal_max_score(coe)
+                calc_score = cal_max_score_by_chuna(limit_chuna, coe, max_s)
+                st.session_state['target_score'] = calc_score
             
-            # そのスコアに対する正確な必要コストを再計算
-            req_chuna = cal_min_chuna(calc_score, coe)
-            st.session_state['ave_chuna'] = req_chuna
+                # そのスコアに対する正確な必要コストを再計算
+                req_chuna = cal_min_chuna(calc_score, coe)
+                c,prob,r = cal_ave_chuna0(calc_score,req_chuna,coe)
+                st.session_state['ave_chuna'] = c
+                st.session_state['res_c'] = c
+                st.session_state['res_r'] = r
+                st.session_state['res_b'] = 1 / prob if prob > 0 else INF
+        
+            st.success(f"推奨目標スコア: **{calc_score:.2f}**")
             
-        st.success(f"推奨目標スコア: **{calc_score:.2f}**")
-        st.caption(f"このスコアを出すために必要な平均チュナ: {req_chuna:.1f}")
+    with col2:
+        val = st.number_input("目標スコアを直接入力", value=st.session_state['target_score'], step=1.0)
+        if st.button("素材の消費量を計算"):
+            st.session_state['target_score'] = val
+            with st.spinner("計算中..."):
+                req_chuna = cal_min_chuna(val, coe)
+                c, prob, r= cal_ave_chuna0(val, req_chuna, coe)
+                
+                st.session_state['ave_chuna'] = c
+                st.session_state['res_c'] = c
+                st.session_state['res_r'] = r
+                st.session_state['res_b'] = 1 / prob if prob > 0 else INF
+                st.toast("計算完了")
 
-    st.divider()
+st.divider()
     
-    st.subheader("手動設定")
-    val = st.number_input("目標スコアを直接入力", value=st.session_state['target_score'], step=1.0)
-    if val != st.session_state['target_score']:
-        st.session_state['target_score'] = val
-        # コスト再計算
-        st.session_state['ave_chuna'] = cal_min_chuna(val, coe)
-        st.toast("目標スコアを更新しました")
-
-    st.metric("現在の基準（Lv0厳選コスト）", f"{st.session_state['ave_chuna']:.1f} チュナ")
+# リソース消費量の表示
+if 'res_c' in st.session_state:
+    st.subheader("素材消費量（期待値）")
+    m1, m2, m3 = st.columns(3)
+    m1.metric("チュナ消費量", f"{int(st.session_state['res_c']):,}")
+    m2.metric("レコード消費量", f"{int(st.session_state['res_r']):,}")
+        
+    b_val = st.session_state['res_b']
+    b_str = f"{b_val:.1f} 個" if b_val < 10**10 else "∞"
+    m3.metric("音骸素体消費量", b_str)
+else:
+    st.caption("※計算ボタンを押すとここに消費量が表示されます")
 
 
 # --- TAB 2: 続行判定 (ラベル修正) ---
@@ -1112,23 +1132,66 @@ with tab2:
                     else:
                         st.write(f"新品から作るより **{abs(diff):.1f}** チュナ余計にかかる見込みです。")
 
-# --- TAB 3: 詳細 (ラベル修正) ---
+# --- TAB 3: 最小ライン一覧 (機能置換) ---
 with tab3:
-    st.header("サブステータス詳細")
-    
-    # ここも動的リストを使用
-    df_sub = pd.DataFrame({
-        "項目": current_sub_names, # ← ここを変更
-        "係数": coe,
-        "最大値(理論)": [max(l) for l in subst_list],
-        "最小値": [min(l) if i != 6 else 30 for i, l in enumerate(subst_list)]
-    })
-    
-    # 係数が0より大きい行だけ強調表示などの工夫も可能ですが、まずはそのまま表示
-    st.dataframe(df_sub)
-    
-    st.markdown("---")
-    st.caption("※このツールは確率モデルに基づいています。実際のゲーム内運により結果は変動します。")
+    st.header("これ以上強化していい最小ライン一覧")
+    st.info("「このサブステが付いたら強化を続けても良い（損ではない）」というギリギリのラインを一覧表示します。")
+
+    if 'target_score' not in st.session_state:
+        st.error("先にタブ①で目標スコアを計算してください")
+    else:
+        search_times = st.radio("検索する強化回数", [1, 2], horizontal=True, help="3以上は計算量が多いため省略")
+        
+        if st.button("一覧を生成"):
+            with st.spinner("探索中... (時間がかかる場合があります)"):
+                valid_rows = []
+                ave = st.session_state['ave_chuna']
+                score_target = st.session_state['target_score']
+                
+                # 有効なサブステのインデックス
+                valid_idx = [i for i, c in enumerate(coe) if c > 0]
+                
+                # 再帰探索
+                def search_combos(idx_in_valid, current_state, count):
+                    if count == 0:
+                        # 判定
+                        cost, msg = judge_continue(score_target, search_times, current_state, ave, coe)
+                        if "推奨" in msg or "続行可能" in msg:
+                            row = {current_sub_names[i]: val for i, val in enumerate(current_state) if val > 0}
+                            row["スコア"] = cal_score_now(current_state, coe)
+                            row["期待コスト"] = int(cost)
+                            row["判定"] = msg
+                            valid_rows.append(row)
+                        return
+
+                    # 枝刈り: 最後まで行ったら終了
+                    if idx_in_valid >= len(valid_idx):
+                        return
+
+                    real_idx = valid_idx[idx_in_valid]
+                    
+                    # 1. このサブステを選ばない場合
+                    search_combos(idx_in_valid + 1, list(current_state), count)
+                    
+                    # 2. このサブステを選ぶ場合 (各値を試す)
+                    for val in subst_list[real_idx]:
+                        new_state = list(current_state)
+                        new_state[real_idx] = val
+                        # 同じサブステ種類は1回しかつかないと仮定して次に進む
+                        search_combos(idx_in_valid + 1, new_state, count - 1)
+
+                # 実行
+                search_combos(0, [0.0]*7, search_times)
+                
+                if valid_rows:
+                    df = pd.DataFrame(valid_rows)
+                    # スコアでソート
+                    df = df.sort_values("スコア").reset_index(drop=True)
+                    
+                    st.write(f"**強化回数 {search_times}回目** の続行可能ライン ({len(df)}件)")
+                    st.dataframe(df.style.format({"スコア": "{:.2f}"}))
+                else:
+                    st.warning("条件を満たす組み合わせが見つかりませんでした。")
         
 
 
