@@ -1132,95 +1132,131 @@ with tab2:
                     else:
                         st.write(f"新品から作るより **{abs(diff):.1f}** チュナ余計にかかる見込みです。")
 
-# --- TAB 3: 最小ライン一覧 (修正版) ---
+# --- TAB 3: 最小ライン一覧 (フィルタリング・スタイル適用版) ---
 with tab3:
     st.header("これ以上強化していい最小ライン一覧")
-    st.info("「このサブステが付いたら強化を続けても良い（損ではない）」という組み合わせを表示します。")
+    st.info("「このサブステが付いたら強化を続けても良い」という**最低ライン**の組み合わせを表示します。")
+    st.caption("※上位互換となる（より強い）組み合わせは、この表では省略されます。")
 
     if 'target_score' not in st.session_state:
         st.error("先にタブ①で目標スコアを計算してください")
     else:
-        # 1〜4回を選択可能に変更
         search_times = st.selectbox("検索する強化回数", [1, 2, 3, 4], help="回数が多いと計算に時間がかかります")
         
         if st.button("一覧を生成"):
-            with st.spinner("探索中... (強化回数が多いと時間がかかります)"):
+            with st.spinner("探索中..."):
                 valid_rows = []
                 ave = st.session_state['ave_chuna']
                 score_target = st.session_state['target_score']
                 
-                # 有効なサブステのインデックス
                 valid_idx = [i for i, c in enumerate(coe) if c > 0]
                 
-                # 再帰探索
+                # --- 1. 全探索で候補を抽出 ---
                 def search_combos(idx_in_valid, current_state, count):
                     if count == 0:
-                        # 判定
                         cost, msg = judge_continue(score_target, search_times, current_state, ave, coe)
-                        
-                        # 「非推奨」以外（推奨 or 続行可能）のみ追加
                         if "非推奨" not in msg:
                             row = {}
-                            # 値が入っているものだけ格納（表示用）
-                            # ただし、カラム固定のため、0でもあとで埋める必要があるが、
-                            # ここでは全データを入れておく
-                            for i in range(7):
-                                row[current_sub_names[i]] = current_state[i]
-                            
+                            # 後でフィルタリングしやすいように全データを持たせる
+                            row["_raw_state"] = list(current_state) 
                             row["スコア"] = cal_score_now(current_state, coe)
                             row["消費チュナ"] = int(cost)
+                            # 表示用データも埋めておく
+                            for i in range(7):
+                                row[current_sub_names[i]] = current_state[i]
                             valid_rows.append(row)
                         return
 
-                    # 枝刈り: 最後まで行ったら終了
                     if idx_in_valid >= len(valid_idx):
                         return
 
                     real_idx = valid_idx[idx_in_valid]
-                    
-                    # 1. このサブステを選ばない場合 (次のサブステへ)
                     search_combos(idx_in_valid + 1, list(current_state), count)
-                    
-                    # 2. このサブステを選ぶ場合 (各値を試す)
                     for val in subst_list[real_idx]:
                         new_state = list(current_state)
                         new_state[real_idx] = val
-                        # 次の階層へ (countを減らす, idxも進める=重複なし)
                         search_combos(idx_in_valid + 1, new_state, count - 1)
 
-                # 実行
                 search_combos(0, [0.0]*7, search_times)
                 
-                if valid_rows:
+                if not valid_rows:
+                    st.warning("条件を満たす組み合わせが見つかりませんでした。（すべて非推奨です）")
+                else:
                     df = pd.DataFrame(valid_rows)
                     
-                    # --- カラム整理 ---
-                    # 1. 基本の並び順定義
+                    # --- 2. フィルタリング (上位互換の削除) ---
+                    # 「同じ構成要素」を持つ行の中で、値がより大きいだけの行は「冗長」として削除する
+                    # 例: クリ6.9でOKなら、クリ10.5は表示しない
+                    
+                    # スコア順（昇順）に並べることで、ギリギリのライン（弱い方）が先に来る
+                    df = df.sort_values("スコア")
+                    
+                    final_indices = []
+                    
+                    # 行データをリスト化して比較 (DataFrameのiterrowsは遅いため)
+                    rows_data = df.to_dict('records')
+                    
+                    # 有効なカラムインデックス
+                    active_indices = [i for i, c in enumerate(coe) if c > 0]
+                    
+                    for i, current in enumerate(rows_data):
+                        is_redundant = False
+                        current_state = current["_raw_state"]
+                        
+                        # 既に採用された「より弱い（または同等の）組み合わせ」と比較
+                        for kept_idx in final_indices:
+                            kept = rows_data[kept_idx]
+                            kept_state = kept["_raw_state"]
+                            
+                            # すべての有効サブステにおいて kept <= current か確認
+                            # かつ、0の場所（サブステの種類）が一致しているか
+                            is_dominated = True
+                            for idx in active_indices:
+                                # 構成が違う（片方0で片方0じゃない）場合は比較対象外
+                                if (kept_state[idx] == 0) != (current_state[idx] == 0):
+                                    is_dominated = False
+                                    break
+                                if kept_state[idx] > current_state[idx]:
+                                    is_dominated = False
+                                    break
+                            
+                            if is_dominated:
+                                is_redundant = True
+                                break
+                        
+                        if not is_redundant:
+                            final_indices.append(i)
+                            
+                    # フィルタリング適用
+                    df_filtered = df.iloc[final_indices].reset_index(drop=True)
+                    
+                    # --- 3. 表示用整形 ---
                     base_order = [
                         "クリティカル", "クリダメ", "攻撃力％",
                         setting["d1_label"], setting["d2_label"],
                         "共鳴効率", "攻撃実数"
                     ]
-                    # 2. 係数が0より大きいものだけ抽出
+                    # 係数>0のカラムのみ抽出
                     active_cols = [name for i, name in enumerate(base_order) if coe[i] > 0]
-                    
-                    # 3. 最終的な表示カラム (スコアと消費チュナを追加)
                     final_cols = active_cols + ["スコア", "消費チュナ"]
                     
-                    # 4. DataFrameをフィルタリングして並べ替え
-                    df_display = df[final_cols]
+                    df_display = df_filtered[final_cols]
                     
-                    # 5. スコアでソート
-                    df_display = df_display.sort_values("スコア").reset_index(drop=True)
+                    # --- 4. スタイル適用 ---
+                    # 0の値を目立たなくする関数
+                    def style_zeros(val):
+                        if isinstance(val, (int, float)) and val == 0:
+                            return 'color: #d0d0d0; font-weight: 300;' # 薄いグレー
+                        return ''
+
+                    st.write(f"**強化回数 {search_times}回目** の続行可能最小ライン ({len(df_display)}件)")
                     
-                    # 6. 0の値を空白やハイフンにする等の整形（今回はそのまま0表示でOKならフォーマットのみ）
-                    # 0を非表示にしたい場合は別途処理が必要ですが、
-                    # 「係数が0の列は排除」済みなので、有効列の中の0（未取得）はそのまま0表示とします。
-                    
-                    st.write(f"**強化回数 {search_times}回目** の続行可能ライン ({len(df)}件)")
-                    st.dataframe(df_display.style.format("{:.2f}").format({"消費チュナ": "{:.0f}"}))
-                else:
-                    st.warning("条件を満たす組み合わせが見つかりませんでした。（すべて非推奨です）")
+                    st.dataframe(
+                        df_display.style
+                        .format("{:.1f}") # 小数点1桁
+                        .format({"消費チュナ": "{:.0f}"}) # チュナは整数
+                        .map(style_zeros) # 0を薄くする (pandasのバージョンによってはapplymap)
+                    )
 
 
 
