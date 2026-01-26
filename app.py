@@ -897,6 +897,17 @@ with st.sidebar:
 
     # ロジックに渡す係数リストを更新
     coe = coe_input
+    
+# サイドバーで選択中の `setting` ("d1_label", "d2_label") を使用してリストを作成
+current_sub_names = [
+    "クリティカル",
+    "クリダメ",
+    "攻撃力％",
+    setting["d1_label"],  # サイドバーの選択に合わせて変化
+    setting["d2_label"],  # サイドバーの選択に合わせて変化
+    "共鳴効率",
+    "攻撃実数"
+]
 
 st.title("🔊 音骸スコア計算")
 
@@ -969,180 +980,155 @@ else:
     )
 
 
-st.header("①使用可能チュナから目標スコアを算出")
+# ==========================================
+# 4. メインエリア (動的ラベル適用版)
+# ==========================================
 
-chuna_limit = st.number_input(
-    "使用可能なチュナ量",
-    value=300,
-    min_value=1,
-    step=100
-)
+# --- 動的ラベルリストの生成 ---
+# サイドバーで選択中の `setting` ("d1_label", "d2_label") を使用してリストを作成
+current_sub_names = [
+    "クリティカル",
+    "クリダメ",
+    "攻撃力％",
+    setting["d1_label"],  # サイドバーの選択に合わせて変化
+    setting["d2_label"],  # サイドバーの選択に合わせて変化
+    "共鳴効率",
+    "攻撃実数"
+]
 
-if st.button("①目標スコアを算出"):
-    with st.spinner("計算中…（時間がかかります）"):
-        score_max=cal_max_score(coe)
-        target_score = cal_max_score_by_chuna(chuna_limit,coe,score_max)
-        chuna, prob, record = cal_ave_chuna0(target_score, chuna_limit,coe)
+# --- タブ表示 ---
+tab1, tab2, tab3 = st.tabs(["① 目標設定", "② 続行判定", "③ 詳細データ"])
 
-    st.subheader("算出結果")
-    st.metric("現実的な目標スコア", int(target_score))
-    st.metric("想定チュナ消費量", int(chuna))
-    st.metric("想定素体消費量", int(1 / prob) if prob > 0 else "∞")
+# セッションステート初期化
+if 'target_score' not in st.session_state:
+    st.session_state['target_score'] = 25.0
+if 'ave_chuna' not in st.session_state:
+    st.session_state['ave_chuna'] = 100.0
+
+# --- TAB 1: 目標設定 ---
+with tab1:
+    st.header("目標スコアの算出")
+    st.info("まずは、自分が許容できるコスト（チュナ量）から、目指すべき現実的なスコアを逆算しましょう。")
     
-    if st.button("この目標スコアを②に使う"):
-        st.session_state["score"] = target_score
-    
-
-st.header("②目標スコア達成に必要な素材量を算出")
-
-score = st.number_input(
-    "目標スコア",
-    min_value=1,
-    step=1,
-    value=st.session_state.get("score", 40)
-)
-
-if st.button("②計算する"):
-    with st.spinner("計算中..."):
-        chuna = cached_cal_min_chuna(score,tuple(coe))
-        n = list(cal_ave_chuna0(score, chuna,coe))
-
-    n[0] = int(n[0])
-    n[2] = int(n[2] / 5000)
-
-    if n[1] > 0:
-        n.append(int(1 / n[1]))
-    else:
-        n.append("無限大")
-
-    # セッションに保存（②で使う）
-    st.session_state["ave_chuna"] = n[0]
-
-    st.subheader("計算結果")
-    st.metric("チュナ消費量", n[0])
-    st.metric("レコード消費量", n[2])
-    st.metric("素体消費量", n[3])
-
-st.header("③音骸の強化続行判定")
-st.caption("②の計算結果を元に、現在の音骸が続行ラインを超えているかを判定")
-
-with st.expander("現在のサブステータスを入力", expanded=True):
-
-    times_step3 = st.slider(
-        "強化回数（現在いくつのサブステが開けられているか）",
-        0, 4, 0, 1,
-        key="times_step3"
-    )
-
-    st.caption("※ 未取得のサブステは 0 のままにしてください")
-
-    substatus = [0.0] * 7
-    active_indices = [i for i in range(7) if coe[i] > 0]
-    cols = st.columns(3)
-
-    for idx, i in enumerate(active_indices):
-        with cols[idx % 3]:
-            substatus[i] = substat_slider(
-                sub_names[i],
-                subst_list[i],
-                enabled=True,
-                key=f"step3_substat_{i}"
-            )
-
-# STEP3 判定ボタン押下時
-if st.button("③判定する"):
-
-    if "ave_chuna" not in st.session_state:
-        st.error("先に②の計算を実行してください")
-        st.stop()
-
-    opened = sum(1 for v in substatus if v > 0)
-    if opened > times_step3:
-        st.warning(
-            f"開放されているサブステ数（{opened}）が "
-            f"強化回数（{times_step3}）を超えています"
-        )
-        st.stop()
-
-    ave_chuna = st.session_state.get("ave_chuna", 0)
-
-    with st.spinner("判定中..."):
-        result_chuna, result_text = judge_continue(score, times_step3, substatus, ave_chuna, coe)
-
-    st.subheader("判定結果")
-    st.metric("判定", result_text)
-
-    # 差額計算
-    delta_chuna = result_chuna - ave_chuna
-
-
-    # 色を推奨度に応じて指定
-    if delta_chuna <= 0:  # 続行すべき良い状態
-        color = "green"
-        sign_text = "少ない"
-    else:                 # 続行非推奨の状態
-        color = "red"
-        sign_text = "多い"
-
-    # 列表示
     col1, col2 = st.columns(2)
-    col1.metric("想定チュナ消費量", int(result_chuna))
-    col2.markdown(
-        f"<h4 style='color:{color}'>境界との差: {abs(round(delta_chuna,2))} ({sign_text})</h4>",
-        unsafe_allow_html=True
-    )
+    with col1:
+        limit_chuna = st.number_input("使用可能なチュナの上限（期待値）", value=500, step=100)
+    
+    if st.button("目標スコアを計算する"):
+        with st.spinner("計算中..."):
+            max_s = cal_max_score(coe)
+            calc_score = cal_max_score_by_chuna(limit_chuna, coe, max_s)
+            st.session_state['target_score'] = calc_score
+            
+            # そのスコアに対する正確な必要コストを再計算
+            req_chuna = cal_min_chuna(calc_score, coe)
+            st.session_state['ave_chuna'] = req_chuna
+            
+        st.success(f"推奨目標スコア: **{calc_score:.2f}**")
+        st.caption(f"このスコアを出すために必要な平均チュナ: {req_chuna:.1f}")
 
-    if delta_chuna <= 0:
-        st.caption("この状態から強化を続けた場合、レベル0からの強化よりも期待値的にお得")
-    else:
-        st.caption("この状態から強化を続けるよりも、レベル0の音骸を強化した方が期待値的にお得") 
+    st.divider()
+    
+    st.subheader("手動設定")
+    val = st.number_input("目標スコアを直接入力", value=st.session_state['target_score'], step=1.0)
+    if val != st.session_state['target_score']:
+        st.session_state['target_score'] = val
+        # コスト再計算
+        st.session_state['ave_chuna'] = cal_min_chuna(val, coe)
+        st.toast("目標スコアを更新しました")
 
-st.header("④これ以上なら強化していい最小ライン一覧")
-st.caption("②の計算結果をもとに表示")
-st.caption("この表に含まれる行のいずれか一つでも完全に下回っていると強化続行非推奨")
-st.caption("逆に、表に含まれる行のいずれか一つと同じかそれを上回っていれば強化続行推奨")
-
-times_step4 = st.slider(
-    "強化回数",
-    0, 4, 0, 1,
-    key="times_step4"
-)
-
-if st.button("④一覧を表示"):
-    if "ave_chuna" not in st.session_state:
-        st.error("先に②の計算を実行してください")
-        st.stop()
-
-    ave_chuna = st.session_state["ave_chuna"]
-
-    with st.spinner("計算中…"):
-        results = judge_continue_all(score, times_step4, ave_chuna,coe)
-
-    if len(results) == 0:
-        st.warning("条件を満たすサブステ構成がありません")
-    else:
-        rows = []
-        for r in results:
-            row = {}
-            for i, name in enumerate(sub_names):
-                if coe[i] > 0:          # ← 係数0は表示しない
-                    row[name] = r["substatus"][i]
-            row["スコア"] = round(r["score"], 2)
-            row["消費チュナ"] = round(r["chuna"], 2)
-            rows.append(row)
-
-        df = pd.DataFrame(rows)        
-        df_display = df.applymap(smart_round)
-
-        styled_df = (
-            df.style
-                .format("{:.1f}")          
-                .applymap(highlight_positive)
-        )
-        st.dataframe(styled_df, use_container_width=True)
+    st.metric("現在の基準（Lv0厳選コスト）", f"{st.session_state['ave_chuna']:.1f} チュナ")
 
 
+# --- TAB 2: 続行判定 (ラベル修正) ---
+with tab2:
+    st.header("強化続行・撤退の判定")
+    st.markdown(f"目標スコア **{st.session_state['target_score']:.2f}** を目指す場合の判定を行います。")
+    
+    # 入力フォーム
+    col_input, col_res = st.columns([1, 1])
+    
+    with col_input:
+        st.subheader("現在の音骸ステータス")
+        
+        current_times = st.slider("現在のサブステ開放数（強化回数）", 0, 4, 1)
+        
+        current_sub = [0.0] * 7
+        
+        # 有効な（係数が0より大きい）ステータスのみ入力させる
+        active_indices = [i for i, c in enumerate(coe) if c > 0]
+        
+        if len(active_indices) == 0:
+            st.warning("サイドバーで係数を1つ以上設定してください。")
+        
+        input_count = 0
+        for i in active_indices:
+            # スライダーで選択（リストにある値のみ）
+            vals = [0.0] + subst_list[i]
+            val = st.select_slider(
+                f"{current_sub_names[i]}", # ← ここを動的リストに変更しました
+                options=vals,
+                key=f"slider_{i}"
+            )
+            current_sub[i] = val
+            if val > 0: input_count += 1
+            
+        if input_count > current_times:
+            st.error(f"入力されたサブステ数({input_count})が開放数({current_times})を超えています。")
 
+    with col_res:
+        st.subheader("判定結果")
+        
+        current_score = cal_score_now(current_sub, coe)
+        st.metric("現在のスコア", f"{current_score:.2f}")
+        
+        if st.button("判定実行", type="primary"):
+            if input_count > current_times:
+                st.error("入力値を確認してください")
+            else:
+                cost, msg = judge_continue(
+                    st.session_state['target_score'],
+                    current_times,
+                    current_sub,
+                    st.session_state['ave_chuna'],
+                    coe
+                )
+                
+                if msg == "強化推奨":
+                    st.success(f"## {msg}")
+                    st.markdown("このまま強化を続けるのが期待値的に**お得**です。")
+                elif "続行可能" in msg:
+                    st.warning(f"## {msg}")
+                    st.markdown("新品を強化するのとあまり変わりません。")
+                else:
+                    st.error(f"## {msg}")
+                    st.markdown("これ以上強化すると期待値的に**損**です。次の素材に行きましょう。")
+                
+                if cost < INF:
+                    st.write(f"ゴールまでの期待コスト: **{cost:.1f}** チュナ")
+                    diff = st.session_state['ave_chuna'] - cost
+                    if diff > 0:
+                        st.write(f"新品から作るより **{diff:.1f}** チュナ節約できる見込みです。")
+                    else:
+                        st.write(f"新品から作るより **{abs(diff):.1f}** チュナ余計にかかる見込みです。")
+
+# --- TAB 3: 詳細 (ラベル修正) ---
+with tab3:
+    st.header("サブステータス詳細")
+    
+    # ここも動的リストを使用
+    df_sub = pd.DataFrame({
+        "項目": current_sub_names, # ← ここを変更
+        "係数": coe,
+        "最大値(理論)": [max(l) for l in subst_list],
+        "最小値": [min(l) if i != 6 else 30 for i, l in enumerate(subst_list)]
+    })
+    
+    # 係数が0より大きい行だけ強調表示などの工夫も可能ですが、まずはそのまま表示
+    st.dataframe(df_sub)
+    
+    st.markdown("---")
+    st.caption("※このツールは確率モデルに基づいています。実際のゲーム内運により結果は変動します。")
         
 
 
