@@ -793,6 +793,10 @@ class CalcTargetResponse(BaseModel):
     res_record: float
     res_body: float
 
+class CalcResourceRequest(BaseModel):
+    target_score: int
+    coe: List[float]
+
 class JudgeRequest(BaseModel):
     target_score: int
     current_times: int
@@ -833,7 +837,7 @@ def calc_target(req: CalcTargetRequest):
         # 最大スコアは内部計算
         arr = [req.coe[i] * subst_list[i][7] for i in range(len(req.coe)) if req.coe[i] > 0]
         arr.sort(reverse=True)
-        max_s = 53.6 + arr[0] + arr[1] if len(arr) >= 2 else 60.0
+        max_s = 53.6 + arr[0] + arr[1] if len(arr) >= 2 else 70.0
         
         # 計算
         sc = cal_max_score_by_chuna(req.chuna_limit, req.coe, max_s)
@@ -842,6 +846,25 @@ def calc_target(req: CalcTargetRequest):
         min_c = cal_min_chuna(sc_int, req.coe)
         c, r, prob = cal_ave_chuna0(sc_int, min_c, req.coe)
         
+        res_b = 1 / prob if prob > 0 else INF
+        
+        return {
+            "target_score": sc_int,
+            "ave_chuna": c,
+            "res_record": r,
+            "res_body": res_b
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- ★追加: 目標スコアから素材量を計算 ---
+@app.post("/api/calc_resources", response_model=CalcTargetResponse)
+def calc_resources(req: CalcResourceRequest):
+    try:
+        sc_int = req.target_score
+        
+        min_c = cal_min_chuna(sc_int, req.coe)
+        c, r, prob = cal_ave_chuna0(sc_int, min_c, req.coe)
         res_b = 1 / prob if prob > 0 else INF
         
         return {
