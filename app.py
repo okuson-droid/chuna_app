@@ -906,7 +906,7 @@ st.header("音骸スコア計算")
 tab1, tab2 = st.tabs(["① 音骸スコア計算（単体）", "② キャラの音骸管理"])
 # --- Tab 4: スコア計算(単体) / ご要望のコードの修正版 ---
 with tab1:
-    st.subheader("音骸スコア計算")
+    st.subheader("① 音骸スコア計算（単体）")
     st.caption("※ 最大強化済み音骸を想定 / サブステ入力")
     
     substatus_single = [0.0] * 7
@@ -955,90 +955,79 @@ with tab1:
         st.subheader("スコア内訳")
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-# --- Tab 5: 5連音骸管理 ---
+# --- Tab 5: 5連音骸管理 (左上キャラ名表示版) ---
 with tab2:
-    st.subheader("5連音骸スコア管理")
+    st.subheader("② キャラの音骸スコア管理")
     st.caption("コスト4, 3, 3, 1, 1 の合計5つの音骸サブステを入力して総スコアを計算します。")
     
-    echo_labels = ["コスト4", "コスト3 (A)", "コスト3 (B)", "コスト1 (A)", "コスト1 (B)"]
-    echo_data = [] # 結果格納用
+    echo_labels = ["コスト4", "コスト3(A)", "コスト3(B)", "コスト1(A)", "コスト1(B)"]
     
-    total_score_all = 0.0
-    total_score_no_er = 0.0
+    # 入力値を保持する辞書
+    all_stats_dict = {name: [0.0] * 5 for name in current_sub_names if coe[current_sub_names.index(name)] > 0}
     
-    # 5つの音骸入力フォームを展開
+    # 5つの音骸入力フォーム
     for echo_idx, label in enumerate(echo_labels):
-        with st.expander(f"{label} のサブステータス入力", expanded=(echo_idx==0)):
-            sub_inputs = [0.0] * 7
-            active_indices = [i for i in range(7) if coe[i] > 0]
-            
-            # 入力列 (3列で配置)
+        with st.expander(f"{label} の入力", expanded=(echo_idx==0)):
+            active_indices = [i for i, c in enumerate(coe) if c > 0]
             cols = st.columns(3)
             for col_idx, stat_idx in enumerate(active_indices):
                 with cols[col_idx % 3]:
-                    sub_inputs[stat_idx] = st.select_slider(
+                    val = st.select_slider(
                         current_sub_names[stat_idx],
                         options=[0.0] + subst_list[stat_idx],
-                        key=f"echo_{echo_idx}_stat_{stat_idx}"
+                        key=f"echo_v5_{echo_idx}_stat_{stat_idx}"
                     )
-            
-            # 個別スコア計算
-            s_total = cal_score_now(sub_inputs, coe)
-            
-            # 共鳴効率(index 5)抜きのスコア
-            # スコア = 値 * 係数 なので、合計から引く
-            er_val = sub_inputs[5]
-            er_coe = coe[5]
-            s_no_er = s_total - (er_val * er_coe)
-            
-            # 集計用加算
-            total_score_all += s_total
-            total_score_no_er += s_no_er
-            
-            # データ保存
-            row_data = {"部位": label}
-            for i in range(7):
-                if coe[i] > 0:
-                    row_data[current_sub_names[i]] = sub_inputs[i]
-            row_data["スコア(込)"] = s_total
-            row_data["スコア(抜)"] = s_no_er
-            echo_data.append(row_data)
+                    all_stats_dict[current_sub_names[stat_idx]][echo_idx] = val
 
     st.divider()
     
-    # --- 結果表示 ---
-    st.subheader("5連合計結果")
+    # --- データフレーム構築 ---
+    df_v = pd.DataFrame(all_stats_dict, index=echo_labels).T
     
-    col_res1, col_res2 = st.columns(2)
-    with col_res1:
-        st.metric("5連 合計スコア (共鳴効率込み)", f"{total_score_all:.2f}")
-    with col_res2:
-        st.metric("5連 合計スコア (共鳴効率抜き)", f"{total_score_no_er:.2f}")
-        st.caption("※共鳴効率の係数分を差し引いた純粋な火力スコア")
+    # ★修正点: インデックス名（左上）に選択中のキャラ名を設定
+    # サイドバーで選択されたキャラ名をセッションから取得
+    current_char_name = st.session_state.get("char_selector", "キャラクター")
+    df_v.index.name = current_char_name
+    
+    # 合計列追加
+    df_v["合計"] = df_v.sum(axis=1)
+    
+    # スコア行計算
+    scores_incl = []
+    scores_excl = []
+    
+    for label in echo_labels:
+        temp_sub = [0.0] * 7
+        for name in df_v.index:
+            real_idx = current_sub_names.index(name)
+            temp_sub[real_idx] = df_v.at[name, label]
         
-    st.subheader("内訳一覧")
-    if len(echo_data) > 0:
-        df_echo = pd.DataFrame(echo_data)
+        s_total = cal_score_now(temp_sub, coe)
+        er_score = temp_sub[5] * coe[5]
         
-        # カラム順序を整える
-        cols_order = ["部位"] + [n for i, n in enumerate(current_sub_names) if coe[i] > 0] + ["スコア(込)", "スコア(抜)"]
-        df_echo = df_echo[cols_order]
-        
-        # 0を薄くするスタイル
-        def style_zeros(val):
-            if isinstance(val, (int, float)) and val == 0:
-                return 'color: #d0d0d0;'
-            return ''
-        
-        numeric_cols = df_echo.columns.drop("部位")
-            
-        st.dataframe(
-            df_echo.style
-            .format("{:.1f}", subset=numeric_cols) # subset引数で数値列のみを指定
-            .map(style_zeros),
-            use_container_width=True,
-            hide_index=True
-        )
+        scores_incl.append(s_total)
+        scores_excl.append(s_total - er_score)
+    
+    # スコア行追加
+    df_v.loc["合計スコア(込)"] = scores_incl + [sum(scores_incl)]
+    df_v.loc["合計スコア(抜)"] = scores_excl + [sum(scores_excl)]
+
+    # --- 表示 ---
+    st.subheader("5連音骸 スコア内訳表")
+    
+    def style_zeros(val):
+        if isinstance(val, (int, float)) and val == 0:
+            return 'color: #d0d0d0;'
+        return ''
+
+    st.dataframe(
+        df_v.style
+        .format("{:.1f}")
+        .map(style_zeros),
+        use_container_width=True
+    )
+    
+    st.caption("※「合計スコア(抜)」は、サイドバーで設定した共鳴効率のスコア分を差し引いた火力特化スコアです。")
 
 st.divider()
 
@@ -1055,7 +1044,7 @@ if 'ave_chuna' not in st.session_state:
 
 # --- TAB 1: 目標設定 ---
 with tab3:
-    st.header("目標スコアの算出および、その目標スコア達成のための素材の消費量を表示")
+    st.subheader("目標スコアの算出および、その目標スコア達成のための素材の消費量を表示")
     st.info("自分が許容できるコスト（チュナ量）から、目指すべき現実的なスコアを逆算します。目標スコアが決まっている人は直接入力してください。")
     
     col1, col2 = st.columns(2)
@@ -1111,7 +1100,7 @@ else:
 
 # --- TAB 2: 続行判定 (ラベル修正) ---
 with tab4:
-    st.header("強化続行・撤退の判定")
+    st.subheader("強化続行・撤退の判定")
     st.markdown(f"目標スコア **{st.session_state['target_score']:.0f}** を目指す場合の判定を行います。")
     
     # 入力フォーム
@@ -1183,7 +1172,7 @@ with tab4:
 
 # --- TAB 3: 最小ライン一覧 (judge_continue_all 使用) ---
 with tab5:
-    st.header("これ以上なら強化続行するべき最小ライン一覧")
+    st.subheader("これ以上なら強化続行するべき最小ライン一覧")
     st.info("「このサブステが付いたら強化を続けても良い」という最低ラインの組み合わせを表示します。")
     st.caption("※上位互換となる（より強い）組み合わせは、自動的に省略されています。")
 
