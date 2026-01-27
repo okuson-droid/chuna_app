@@ -907,20 +907,20 @@ tab1, tab2 = st.tabs(["① 音骸スコア計算（単体）", "② キャラの
 # --- Tab 4: スコア計算(単体) / ご要望のコードの修正版 ---
 with tab1:
     st.subheader("① 音骸スコア計算（単体）")
-    st.caption("※ 最大強化済み音骸を想定 / サブステ入力")
+    st.caption("※ 最大強化済み音骸を想定")
     
     substatus_single = [0.0] * 7
     active_indices = [i for i in range(7) if coe[i] > 0]
     cols = st.columns(3)
-
-    for idx, i in enumerate(active_indices):
-        with cols[idx % 3]:
-            # ダメアップ系も動的に名前が変わる current_sub_names を使用
-            substatus_single[i] = st.select_slider(
-                current_sub_names[i],
-                options=[0.0] + subst_list[i],
-                key=f"step1_substat_{i}"
-            )
+    with st.expander("サブステの入力"):
+        for idx, i in enumerate(active_indices):
+            with cols[idx % 3]:
+                # ダメアップ系も動的に名前が変わる current_sub_names を使用
+                substatus_single[i] = st.select_slider(
+                    current_sub_names[i],
+                    options=[0.0] + subst_list[i],
+                    key=f"step1_substat_{i}"
+                )
 
     st.divider()
 
@@ -1095,7 +1095,7 @@ if 'res_c' in st.session_state:
     b_str = f"{b_val:.0f} 個" if b_val < 10**10 else "∞"
     m3.metric("音骸素体消費量", b_str)
 else:
-    st.caption("※計算ボタンを押すとここに消費量が表示されます")
+    st.caption("※① で計算ボタンを押すとここに消費量が表示されます")
 
 
 # --- TAB 2: 続行判定 (ラベル修正) ---
