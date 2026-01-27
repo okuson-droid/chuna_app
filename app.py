@@ -908,7 +908,7 @@ tab1, tab2 = st.tabs(["① 音骸スコア計算（単体）", "② キャラの
 with tab1:
     st.subheader("① 音骸スコア計算（単体）")
     st.caption("※ 最大強化済み音骸を想定")
-    with st.expander("サブステの入力"):   
+    with st.expander("サブステの入力",expanded=True):   
         substatus_single = [0.0] * 7
         active_indices = [i for i in range(7) if coe[i] > 0]
         cols = st.columns(3)
@@ -952,8 +952,8 @@ with tab1:
 
         df = df[df["値"] > 0]
 
-        st.subheader("スコア内訳")
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        with st.expander("スコア内訳",expanded=False):   
+            st.dataframe(df, use_container_width=True, hide_index=True)
 
 # --- Tab 5: 5連音骸管理 (左上キャラ名表示版) ---
 with tab2:
@@ -1013,21 +1013,21 @@ with tab2:
     df_v.loc["合計スコア(抜)"] = scores_excl + [sum(scores_excl)]
 
     # --- 表示 ---
-    st.subheader("5連音骸 スコア内訳表")
+    with st.expander("5連音骸 スコア内訳表",expanded=True):
     
-    def style_zeros(val):
-        if isinstance(val, (int, float)) and val == 0:
-            return 'color: #d0d0d0;'
-        return ''
+        def style_zeros(val):
+            if isinstance(val, (int, float)) and val == 0:
+                return 'color: #d0d0d0;'
+            return ''
 
-    st.dataframe(
-        df_v.style
-        .format("{:.1f}")
-        .map(style_zeros),
-        use_container_width=True
-    )
+        st.dataframe(
+            df_v.style
+            .format("{:.1f}")
+            .map(style_zeros),
+            use_container_width=True
+        )
     
-    st.caption("※「合計スコア(抜)」は、サイドバーで設定した共鳴効率のスコア分を差し引いた火力特化スコアです。")
+        st.caption("※「合計スコア(抜)」は、サイドバーで設定した共鳴効率のスコア分を差し引いた火力特化スコアです。")
 
 st.divider()
 
