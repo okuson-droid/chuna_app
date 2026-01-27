@@ -908,11 +908,11 @@ tab1, tab2 = st.tabs(["① 音骸スコア計算（単体）", "② キャラの
 with tab1:
     st.subheader("① 音骸スコア計算（単体）")
     st.caption("※ 最大強化済み音骸を想定")
+    with st.expander("サブステの入力"):   
+        substatus_single = [0.0] * 7
+        active_indices = [i for i in range(7) if coe[i] > 0]
+        cols = st.columns(3)
     
-    substatus_single = [0.0] * 7
-    active_indices = [i for i in range(7) if coe[i] > 0]
-    cols = st.columns(3)
-    with st.expander("サブステの入力"):
         for idx, i in enumerate(active_indices):
             with cols[idx % 3]:
                 # ダメアップ系も動的に名前が変わる current_sub_names を使用
@@ -1044,7 +1044,7 @@ if 'ave_chuna' not in st.session_state:
 
 # --- TAB 1: 目標設定 ---
 with tab3:
-    st.subheader("目標スコアの算出および、その目標スコア達成のための素材の消費量を表示")
+    st.subheader("① 目標スコアの算出および、その目標スコア達成のための素材の消費量を表示")
     st.info("自分が許容できるコスト（チュナ量）から、目指すべき現実的なスコアを逆算します。目標スコアが決まっている人は直接入力してください。")
     
     col1, col2 = st.columns(2)
@@ -1100,7 +1100,7 @@ else:
 
 # --- TAB 2: 続行判定 (ラベル修正) ---
 with tab4:
-    st.subheader("強化続行・撤退の判定")
+    st.subheader("② 強化続行・撤退の判定")
     st.markdown(f"目標スコア **{st.session_state['target_score']:.0f}** を目指す場合の判定を行います。")
     
     # 入力フォーム
@@ -1172,7 +1172,7 @@ with tab4:
 
 # --- TAB 3: 最小ライン一覧 (judge_continue_all 使用) ---
 with tab5:
-    st.subheader("これ以上なら強化続行するべき最小ライン一覧")
+    st.subheader("③ これ以上なら強化続行するべき最小ライン一覧")
     st.info("「このサブステが付いたら強化を続けても良い」という最低ラインの組み合わせを表示します。")
     st.caption("※上位互換となる（より強い）組み合わせは、自動的に省略されています。")
 
