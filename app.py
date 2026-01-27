@@ -1018,7 +1018,7 @@ if 'ave_chuna' not in st.session_state:
 with tab3:
     st.subheader("① 目標スコアの算出および、その目標スコア達成のための素材の消費量を表示")
     st.info("自分が許容できるコスト（チュナ量）から、目指すべき現実的なスコアを逆算します。目標スコアが決まっている人は直接入力してください。")
-    st.info("注）同時に複数人が①の計算をした場合高確率でサイトが落ちます。その場合右側のManage appをクリックして三点リーダーのメニューからReboot appを押してください")
+    st.caption("注）同時に複数人が①の計算をした場合高確率でサイトが落ちます。その場合右側のManage appをクリックして三点リーダーのメニューからReboot appを押してください")
     
     col1, col2 = st.columns(2)
     with col1:
