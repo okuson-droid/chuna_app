@@ -582,21 +582,6 @@ def judge_continue_all(score,times,ave_chuna,coe):
     
     return "error"
 
-def highlight_positive(val):
-    try:
-        if float(val) > 0:
-            return "font-weight: bold;"
-    except:
-        pass
-    return ""       
-
-def smart_round(x):
-    if isinstance(x, float):
-        if x.is_integer():
-            return int(x)
-        return round(x, 2)
-    return x
-
 def cal_max_score_by_chuna(chuna_limit,coe,score_max, score_min=1):
     lo, hi = score_min, score_max
     best = lo
@@ -613,18 +598,6 @@ def cal_max_score_by_chuna(chuna_limit,coe,score_max, score_min=1):
 
     return best
 
-def substat_slider(name, value_list, enabled=True, key=None):
-    return st.select_slider(
-        name,
-        options=[0.0] + value_list,
-        value=0.0,
-        disabled=not enabled,
-        format_func=lambda x: "未取得" if x == 0 else f"{x}",
-        key=key
-    )
-
-def calc_score_breakdown(substatus, coe):
-    return [substatus[i] * coe[i] for i in range(len(substatus))]
 # =========================
 # タイトル
 # =========================
@@ -1045,6 +1018,7 @@ if 'ave_chuna' not in st.session_state:
 with tab3:
     st.subheader("① 目標スコアの算出および、その目標スコア達成のための素材の消費量を表示")
     st.info("自分が許容できるコスト（チュナ量）から、目指すべき現実的なスコアを逆算します。目標スコアが決まっている人は直接入力してください。")
+    st.info("注）同時に複数人が①の計算をした場合高確率でサイトが落ちます。その場合右側のManage appをクリックして三点リーダーのメニューからReboot appを押してください")
     
     col1, col2 = st.columns(2)
     with col1:
