@@ -5,10 +5,10 @@ from functools import lru_cache
 import copy
 
 # ==========================================
-# 1. 定数・データ定義
+# 1. 定数・設定データ定義
 # ==========================================
 
-# 各サブステータスの出現値リスト
+# 各サブステータスの出現値
 cr_list = [6.3, 6.9, 7.5, 8.1, 8.7, 9.3, 9.9, 10.5]
 cd_list = [12.6, 13.8, 15.0, 16.2, 17.4, 18.6, 19.8, 21.0]
 at_p_list = [6.4, 7.1, 7.9, 8.6, 9.4, 10.1, 10.9, 11.6]
@@ -17,7 +17,7 @@ damage2_list = [6.4, 7.1, 7.9, 8.6, 9.4, 10.1, 10.9, 11.6]
 efficiency_list = [6.8, 7.6, 8.4, 9.2, 10.0, 10.8, 11.6, 12.4]
 at_n_list = [30, 40, 50, 60, 0, 0, 0, 0]
 
-# 各値の出現確率ウェイト
+# 出現確率ウェイト
 cr_weight = [0.2429, 0.2458, 0.2023, 0.0940, 0.0840, 0.0872, 0.0269, 0.0169]
 cd_weight = [0.157509, 0.274725, 0.282051, 0.076923, 0.091575, 0.080586, 0.021978, 0.014652]
 at_p_weight = [0.080862, 0.086253, 0.185983, 0.226415, 0.153638, 0.194070, 0.051212, 0.021563]
@@ -26,74 +26,83 @@ damage2_weight = at_p_weight
 efficiency_weight = at_p_weight
 at_n_weight = [0.269, 0.385, 0.325, 0.021, 0, 0, 0, 0]
 
+# 統合リスト
 subst_list = [cr_list, cd_list, at_p_list, damage1_list, damage2_list, efficiency_list, at_n_list]
 subst_weight = [cr_weight, cd_weight, at_p_weight, damage1_weight, damage2_weight, efficiency_weight, at_n_weight]
 
-# コスト関連データ
+# コスト定義
 record_list = [1100, 3025, 5775, 9875, 15875] 
 TUNER_COST_PER_SLOT = 10 
-
 INF = 10**18
 
+# キャラプリセット定義
+CHAR_SETTINGS = {
+    "カスタム (手動設定)": {"coe": [2.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.1], "d1_label": "ダメアップ1", "d2_label": "ダメアップ2"},
+    "今汐 (スキル特化)": {"coe": [2.0, 1.0, 0.8, 1.0, 0.0, 0.2, 0.05], "d1_label": "共鳴スキルダメ", "d2_label": "その他のダメ"},
+    "忌炎 (重撃特化)": {"coe": [2.0, 1.0, 0.8, 1.0, 0.0, 0.2, 0.05], "d1_label": "重撃ダメージ", "d2_label": "共鳴解放ダメ"},
+    "長離 (スキル/解放)": {"coe": [2.0, 1.0, 0.8, 1.0, 1.0, 0.2, 0.05], "d1_label": "共鳴スキルダメ", "d2_label": "共鳴解放ダメ"},
+    "相里要 (解放特化)": {"coe": [2.0, 1.0, 0.8, 1.0, 0.0, 0.2, 0.05], "d1_label": "共鳴解放ダメ", "d2_label": "共鳴スキルダメ"},
+    "ツバキ (通常特化)": {"coe": [2.0, 1.0, 0.8, 1.0, 0.0, 0.1, 0.05], "d1_label": "通常攻撃ダメ", "d2_label": "共鳴スキルダメ"},
+    "ヴェリーナ/ショア (ヒーラー)": {"coe": [0.0, 0.0, 1.0, 0.0, 0.0, 2.0, 0.1], "d1_label": "回復量(非対応)", "d2_label": "ダメアップ(不要)"},
+}
+
 # ==========================================
-# 2. 計算ロジック関数群
+# 2. 関数定義
 # ==========================================
 
+# --- UIヘルパー関数 ---
+def render_substat_inputs(labels, values_list, coe, key_prefix):
+    sub_inputs = [0.0] * 7
+    active_indices = [i for i, c in enumerate(coe) if c > 0]
+    cols = st.columns(3)
+    
+    for col_idx, stat_idx in enumerate(active_indices):
+        with cols[col_idx % 3]:
+            sub_inputs[stat_idx] = st.select_slider(
+                labels[stat_idx],
+                options=[0.0] + values_list[stat_idx],
+                key=f"{key_prefix}_{stat_idx}"
+            )
+    return sub_inputs
+
+def style_zeros(val):
+    if isinstance(val, (int, float)) and val == 0:
+        return 'color: #d0d0d0;'
+    return ''
+
+# --- 計算ロジック ---
 def cal_score_now(substatus, coe):
-    """現在のスコアを計算"""
-    s = 0
-    for i in range(7):
-        s += substatus[i] * coe[i]
-    return s
+    return sum(substatus[i] * coe[i] for i in range(7))
 
 def possible_next_states(substatus, t, coe):
-    """次の状態遷移と確率を列挙"""
     next_states = []
     sub_list = list(substatus)
     empty_idx = [i for i, v in enumerate(sub_list) if v == 0]
     
     n = 8 + t
     m = 8 - len(empty_idx) + t
-    
     if n == 0: return []
-
     p_choose_type = 1 / n
     
-    # A. 不要サブステ(またはハズレ枠)
-    next_states.append(
-        (tuple(sub_list), p_choose_type * m)
-    )
-
+    next_states.append((tuple(sub_list), p_choose_type * m))
+    
     for i in empty_idx:
-        # B. 係数0の有効リスト値
         if coe[i] == 0:
             temp = list(sub_list)
             temp[i] = 1 
-            next_states.append(
-                (tuple(temp), p_choose_type)
-            )
+            next_states.append((tuple(temp), p_choose_type))
             continue
-
-        # C. 有効サブステ
         for val, w in zip(subst_list[i], subst_weight[i]):
             temp = list(sub_list)
             temp[i] = val
-            next_states.append(
-                (tuple(temp), p_choose_type * w)
-            )
-
+            next_states.append((tuple(temp), p_choose_type * w))
     return next_states
 
 @lru_cache(maxsize=None)
 def expected_resources(substatus, depth, target_score, ave_chuna, coe):
-    """正確なリソース消費期待値を計算するDP関数"""
     score_now = cal_score_now(substatus, coe)
-
-    # 目標達成
     if score_now >= target_score:
         return 0.0, 0.0, 1.0, True
-
-    # 全スロット開放済みだが目標未達
     if depth == 5:
         return INF, INF, 0.0, False
 
@@ -106,441 +115,405 @@ def expected_resources(substatus, depth, target_score, ave_chuna, coe):
     weighted_future_record = 0.0
 
     for sub_next, prob_trans in possible_next_states(substatus, t_remaining, coe):
-        e_tuner, e_record, prob_success, ok = expected_resources(
-            sub_next,
-            depth + 1,
-            target_score,
-            ave_chuna,
-            coe
-        )
-
-        if not ok:
+        e_tuner, e_record, prob_success, ok = expected_resources(sub_next, depth + 1, target_score, ave_chuna, coe)
+        if not ok or e_tuner > ave_chuna:
             continue
-
-        # 損切り判定
-        if e_tuner > ave_chuna:
-            continue
-
-        total_prob += prob_trans * prob_success
-        weighted_future_tuner += prob_trans * prob_success * e_tuner
-        weighted_future_record += prob_trans * prob_success * e_record
+        prob_combined = prob_trans * prob_success
+        total_prob += prob_combined
+        weighted_future_tuner += prob_combined * e_tuner
+        weighted_future_record += prob_combined * e_record
 
     if total_prob == 0:
         return INF, INF, 0.0, False
 
     final_expected_tuner = (step_tuner + weighted_future_tuner) / total_prob
     final_expected_record = (step_record + weighted_future_record) / total_prob
-    
     return final_expected_tuner, final_expected_record, total_prob, True
 
+def cal_ave_chuna_fast(target_score, times, substatus, ave_chuna, coe):
+    val, _, _, ok = expected_resources(tuple(substatus), times, target_score, ave_chuna, tuple(coe))
+    return val if ok else INF
+
 def cal_max_score(coe):
-    """理論最大スコア計算"""
     arr = [coe[i] * subst_list[i][7] for i in range(len(coe)) if coe[i] > 0]
     arr.sort(reverse=True)
-    if len(arr) >= 2:
-        return 53.6 + arr[0] + arr[1] 
-    return 60.0
+    return 53.6 + arr[0] + arr[1] if len(arr) >= 2 else 60.0
 
 def cal_min_chuna(score, coe):
-    """目標スコアに必要な最小チュナ期待値を二分探索"""
-    low = 1
-    high = 300000
-    ans = high
+    low, high, ans = 1.0, 300000.0, 300000.0
     coe_t = tuple(coe)
-    
     for _ in range(30):
         mid = (low + high) / 2
         res_tuner, _, _, ok = expected_resources(tuple([0]*7), 0, score, mid, coe_t)
-        
         if ok and res_tuner <= mid:
-            ans = mid
-            high = mid
+            ans = high = mid
         else:
             low = mid
     return ans
 
 def cal_max_score_by_chuna(chuna_limit, coe, max_s):
-    """指定チュナで狙える最大スコアを二分探索"""
-    low = 1.0
-    high = max_s
-    ans = low
+    low, high, ans = 1.0, max_s, 1.0
     for _ in range(20):
         mid = (low + high) / 2
-        req = cal_min_chuna(mid, coe)
-        if req <= chuna_limit:
-            ans = mid
-            low = mid
+        if cal_min_chuna(mid, coe) <= chuna_limit:
+            ans = low = mid
         else:
             high = mid
     return ans
 
 def judge_continue(score, times, substatus, ave_chuna, coe):
-    """続行判定"""
-    substatus_t = tuple(substatus)
-    coe_t = tuple(coe)
-    e_tuner, _, _, ok = expected_resources(substatus_t, times, score, ave_chuna, coe_t)
-    
+    e_tuner, _, _, ok = expected_resources(tuple(substatus), times, score, ave_chuna, tuple(coe))
     if not ok: return INF, "達成不可能"
+    if e_tuner <= ave_chuna: return e_tuner, "強化推奨"
+    elif e_tuner <= ave_chuna * 1.2: return e_tuner, "続行可能"
+    return e_tuner, "強化非推奨"
+
+def judge_continue_all(score, times, ave_chuna, coe):
+    results = []
+    subst_list0 = copy.deepcopy(subst_list)
+    for i in range(7):
+        subst_list0[i].insert(0, 0)
     
-    if e_tuner <= ave_chuna:
-        return e_tuner, "強化推奨"
-    elif e_tuner <= ave_chuna * 1.2:
-        return e_tuner, "続行可能"
-    else:
-        return e_tuner, "強化非推奨"
+    memory = np.zeros((1, 7)) + 8
+    
+    # times=0
+    if times == 0:
+        ch = cal_ave_chuna_fast(score, 0, [0]*7, ave_chuna, coe)
+        if ch <= ave_chuna:
+            results.append({"substatus": [0]*7, "chuna": ch, "score": 0})
+        return results
+
+    # times=1 loop
+    if times >= 1:
+        for i in range(7):
+            if coe[i] == 0: continue
+            for j in range(8):
+                if i == 6 and j >= 4: break
+                sub = [0]*7
+                sub[i] = subst_list0[i][j+1]
+                ch = cal_ave_chuna_fast(score, times, sub, ave_chuna, coe)
+                if ch <= ave_chuna:
+                    results.append({"substatus": sub, "chuna": ch, "score": cal_score_now(sub, coe)})
+                    memory = np.append(memory, [[0]*7], axis=0)
+                    memory[-1, i] = j + 1
+                    break
+    if times == 1:
+        return results
+
+    # times=2 loop
+    if times >= 2:
+        for i in range(6):
+            if coe[i] == 0: continue
+            for j in range(8):
+                st_ = np.zeros(7)
+                st_[i] = j + 1
+                if np.count_nonzero(np.all(memory <= st_, axis=1)) > 0:
+                    break
+                for k in range(i+1, 7):
+                    if coe[k] == 0: continue
+                    for l in range(8):
+                        if k == 6 and l >= 4: break
+                        st_[k] = l + 1
+                        if np.count_nonzero(np.all(memory <= st_, axis=1)) > 0:
+                            st_[k] = 0
+                            break
+                        st_[k] = 0
+                        sub = [0]*7
+                        sub[i] = subst_list0[i][j+1]
+                        sub[k] = subst_list0[k][l+1]
+                        ch = cal_ave_chuna_fast(score, times, sub, ave_chuna, coe)
+                        if ch <= ave_chuna:
+                            results.append({"substatus": sub, "chuna": ch, "score": cal_score_now(sub, coe)})
+                            memory = np.append(memory, [[0]*7], axis=0)
+                            memory[-1, i] = j+1
+                            memory[-1, k] = l+1
+                            break
+    if times == 2:
+        return results
+
+    # times=3 loop
+    if times >= 3:
+        for i in range(5):
+            if coe[i] == 0: continue
+            for j in range(8):
+                st_ = np.zeros(7)
+                st_[i] = j + 1
+                if np.count_nonzero(np.all(memory <= st_, axis=1)) > 0:
+                    break
+                for k in range(i+1, 6):
+                    if coe[k] == 0: continue
+                    for l in range(8):
+                        if k == 6 and l >= 4: break
+                        st_[k] = l + 1
+                        if np.count_nonzero(np.all(memory <= st_, axis=1)) > 0:
+                            st_[k] = 0
+                            break
+                        for m in range(k+1, 7):
+                            if coe[m] == 0: continue
+                            for n in range(8):
+                                if m == 6 and n >= 4: break
+                                st_[m] = n + 1
+                                if np.count_nonzero(np.all(memory <= st_, axis=1)) > 0:
+                                    st_[m] = 0
+                                    break
+                                st_[m] = 0
+                                sub = [0]*7
+                                sub[i] = subst_list0[i][j+1]
+                                sub[k] = subst_list0[k][l+1]
+                                sub[m] = subst_list0[m][n+1]
+                                ch = cal_ave_chuna_fast(score, times, sub, ave_chuna, coe)
+                                if ch <= ave_chuna:
+                                    results.append({"substatus": sub, "chuna": ch, "score": cal_score_now(sub, coe)})
+                                    memory = np.append(memory, [[0]*7], axis=0)
+                                    memory[-1, i] = j+1
+                                    memory[-1, k] = l+1
+                                    memory[-1, m] = n+1
+                                    break
+                        st_[k] = 0
+    if times == 3:
+        return results
+
+    # times=4 loop
+    if times >= 4:
+        for i in range(4):
+            if coe[i] == 0: continue
+            for j in range(8):
+                st_ = np.zeros(7)
+                st_[i] = j+1
+                if np.count_nonzero(np.all(memory <= st_, axis=1)) > 0:
+                    break
+                for k in range(i+1, 5):
+                    if coe[k] == 0: continue
+                    for l in range(8):
+                        st_[k] = l+1
+                        if np.count_nonzero(np.all(memory <= st_, axis=1)) > 0:
+                            st_[k] = 0
+                            break
+                        for m in range(k+1, 6):
+                            if coe[m] == 0: continue
+                            for n in range(8):
+                                st_[m] = n+1
+                                if np.count_nonzero(np.all(memory <= st_, axis=1)) > 0:
+                                    st_[m] = 0
+                                    break
+                                for o in range(m+1, 7):
+                                    if coe[o] == 0: continue
+                                    for p in range(8):
+                                        if o == 6 and p >= 4: break
+                                        st_[o] = p+1
+                                        if np.count_nonzero(np.all(memory <= st_, axis=1)) > 0:
+                                            st_[o] = 0
+                                            break
+                                        st_[o] = 0
+                                        sub = [0]*7
+                                        sub[i] = subst_list0[i][j+1]
+                                        sub[k] = subst_list0[k][l+1]
+                                        sub[m] = subst_list0[m][n+1]
+                                        sub[o] = subst_list0[o][p+1]
+                                        ch = cal_ave_chuna_fast(score, times, sub, ave_chuna, coe)
+                                        if ch <= ave_chuna:
+                                            results.append({"substatus": sub, "chuna": ch, "score": cal_score_now(sub, coe)})
+                                            memory = np.append(memory, [[0]*7], axis=0)
+                                            memory[-1, i] = j+1
+                                            memory[-1, k] = l+1
+                                            memory[-1, m] = n+1
+                                            memory[-1, o] = p+1
+                                            break
+                                st_[m] = 0
+                        st_[k] = 0
+    return results
 
 # ==========================================
-# 3. Streamlit UI
+# 3. Streamlit UI 構築
 # ==========================================
 
 st.set_page_config(page_title="音骸厳選計算ツール", layout="wide")
 
-# --- プリセットデータの定義 ---
-CHAR_SETTINGS = {
-    "カスタム (手動設定)": {
-        "coe": [2.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.1],
-        "d1_label": "ダメアップ1",
-        "d2_label": "ダメアップ2"
-    },
-    "今汐 (スキル特化)": {
-        "coe": [2.0, 1.0, 0.8, 1.0, 0.0, 0.2, 0.05],
-        "d1_label": "共鳴スキルダメ",
-        "d2_label": "その他のダメ"
-    },
-    "忌炎 (重撃特化)": {
-        "coe": [2.0, 1.0, 0.8, 1.0, 0.0, 0.2, 0.05],
-        "d1_label": "重撃ダメージ",
-        "d2_label": "共鳴解放ダメ"
-    },
-    "長離 (スキル/解放)": {
-        "coe": [2.0, 1.0, 0.8, 1.0, 1.0, 0.2, 0.05],
-        "d1_label": "共鳴スキルダメ",
-        "d2_label": "共鳴解放ダメ"
-    },
-    "相里要 (解放特化)": {
-        "coe": [2.0, 1.0, 0.8, 1.0, 0.0, 0.2, 0.05],
-        "d1_label": "共鳴解放ダメ",
-        "d2_label": "共鳴スキルダメ"
-    },
-    "ツバキ (通常特化)": {
-        "coe": [2.0, 1.0, 0.8, 1.0, 0.0, 0.1, 0.05],
-        "d1_label": "通常攻撃ダメ",
-        "d2_label": "共鳴スキルダメ"
-    },
-    "ヴェリーナ/ショア (ヒーラー)": {
-        "coe": [0.0, 0.0, 1.0, 0.0, 0.0, 2.0, 0.1],
-        "d1_label": "回復量(非対応)",
-        "d2_label": "ダメアップ(不要)"
-    },
-}
+# 初期化 (整数で定義)
+if 'target_score' not in st.session_state: st.session_state['target_score'] = 25
+if 'ave_chuna' not in st.session_state: st.session_state['ave_chuna'] = 100.0
 
+# サイドバー処理
 def update_presets():
-    selected = st.session_state["char_selector"]
-    vals = CHAR_SETTINGS[selected]["coe"]
-    st.session_state["ni_cr"] = vals[0]
-    st.session_state["ni_cd"] = vals[1]
-    st.session_state["ni_atk"] = vals[2]
-    st.session_state["ni_d1"] = vals[3]
-    st.session_state["ni_d2"] = vals[4]
-    st.session_state["ni_er"] = vals[5]
-    st.session_state["ni_flat"] = vals[6]
+    sel = st.session_state["char_selector"]
+    vals = CHAR_SETTINGS[sel]["coe"]
+    keys = ["ni_cr", "ni_cd", "ni_atk", "ni_d1", "ni_d2", "ni_er", "ni_flat"]
+    for i, k in enumerate(keys):
+        st.session_state[k] = vals[i]
 
 with st.sidebar:
     st.header("1. スコア計算の設定")
-    selected_char = st.selectbox(
-        "キャラ・プリセット選択",
-        options=list(CHAR_SETTINGS.keys()),
-        key="char_selector",
-        on_change=update_presets
-    )
-    setting = CHAR_SETTINGS[selected_char]
+    sel_char = st.selectbox("キャラ・プリセット選択", options=list(CHAR_SETTINGS.keys()), key="char_selector", on_change=update_presets)
+    set_ = CHAR_SETTINGS[sel_char]
     
+    # 初回用の値セット
     if "ni_cr" not in st.session_state:
-        init_vals = setting["coe"]
-        st.session_state["ni_cr"] = init_vals[0]
-        st.session_state["ni_cd"] = init_vals[1]
-        st.session_state["ni_atk"] = init_vals[2]
-        st.session_state["ni_d1"] = init_vals[3]
-        st.session_state["ni_d2"] = init_vals[4]
-        st.session_state["ni_er"] = init_vals[5]
-        st.session_state["ni_flat"] = init_vals[6]
-
-    coe_input = [0.0] * 7
-    coe_input[0] = st.number_input("クリティカル", step=0.1, format="%.2f", key="ni_cr")
-    coe_input[1] = st.number_input("クリダメ", step=0.1, format="%.2f", key="ni_cd")
-    coe_input[2] = st.number_input("攻撃力％", step=0.1, format="%.2f", key="ni_atk")
+        update_presets()
+        
+    labels = ["クリティカル", "クリダメ", "攻撃力％", set_["d1_label"], set_["d2_label"], "共鳴効率", "攻撃実数"]
+    keys = ["ni_cr", "ni_cd", "ni_atk", "ni_d1", "ni_d2", "ni_er", "ni_flat"]
+    coe = []
+    
+    # 係数入力フォーム
+    for i, (lbl, k) in enumerate(zip(labels, keys)):
+        step_val = 0.01 if i == 6 else 0.1
+        if i == 3 or i == 4: st.divider()
+        coe.append(st.number_input(lbl, step=step_val, format="%.2f", key=k))
     st.divider()
-    coe_input[3] = st.number_input(setting["d1_label"], step=0.1, format="%.2f", key="ni_d1")
-    coe_input[4] = st.number_input(setting["d2_label"], step=0.1, format="%.2f", key="ni_d2")
-    st.divider()
-    coe_input[5] = st.number_input("共鳴効率", step=0.1, format="%.2f", key="ni_er")
-    coe_input[6] = st.number_input("攻撃実数", step=0.01, format="%.2f", key="ni_flat")
-    coe = coe_input
 
-# ==========================================
-# 4. メインエリア
-# ==========================================
+current_sub_names = labels
 
-current_sub_names = [
-    "クリティカル", "クリダメ", "攻撃力％",
-    setting["d1_label"], setting["d2_label"],
-    "共鳴効率", "攻撃実数"
-]
-
+# メイン画面
 st.title("鳴潮 音骸厳選計算ツール")
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["① 目標設定", "② 続行判定", "③ 最小ライン", "④ スコア計算(単体)", "⑤ 5連音骸管理"])
 
-tab1, tab2, tab3 = st.tabs(["① 目標設定", "② 続行判定", "④ 最小ライン一覧"])
-
-if 'target_score' not in st.session_state:
-    st.session_state['target_score'] = 25.0
-if 'ave_chuna' not in st.session_state:
-    st.session_state['ave_chuna'] = 100.0
-
-# --- TAB 1: 目標設定 ---
+# --- Tab 1 ---
 with tab1:
     st.header("目標スコアの算出")
-    st.info("許容コストから目標スコアを逆算、または目標スコアから正確な消費期待値を算出します。")
-    
     col1, col2 = st.columns(2)
     with col1:
-        limit_chuna = st.number_input("使用可能なチュナの上限（期待値）", value=500, step=100)
+        limit = st.number_input("使用可能なチュナの上限（期待値）", value=500.0, step=100.0)
         if st.button("チュナ上限から計算"):
             with st.spinner("計算中..."):
-                max_s = cal_max_score(coe)
-                calc_score = cal_max_score_by_chuna(limit_chuna, coe, max_s)
-                st.session_state['target_score'] = calc_score
-                
-                # 正確なリソース計算 (depth=0から)
-                tuner_req = cal_min_chuna(calc_score, coe)
-                c, r, prob, ok = expected_resources(tuple([0]*7), 0, calc_score, tuner_req, tuple(coe))
-                
-                st.session_state['ave_chuna'] = c
-                st.session_state['res_c'] = c
-                st.session_state['res_r'] = r
-                st.session_state['res_b'] = 1 / prob if prob > 0 else INF
-                
-            st.success(f"推奨目標スコア: **{calc_score:.2f}**")
-            
+                sc = cal_max_score_by_chuna(limit, coe, cal_max_score(coe))
+                sc_int = int(sc) # 整数変換
+                st.session_state['target_score'] = sc_int
+                st.session_state['res_c'], st.session_state['res_r'], pr, _ = expected_resources(tuple([0]*7), 0, sc_int, cal_min_chuna(sc_int, coe), tuple(coe))
+                st.session_state['ave_chuna'] = st.session_state['res_c']
+                st.session_state['res_b'] = 1 / pr if pr > 0 else INF
+                st.success(f"推奨目標スコア: **{sc_int}**")
     with col2:
-        val = st.number_input("目標スコアを直接入力", value=st.session_state['target_score'], step=1.0)
+        # 型合わせ修正済み: valueをintにキャストし、step=1(int)に指定
+        val = st.number_input("目標スコアを直接入力", value=int(st.session_state['target_score']), step=1, format="%d")
         if st.button("スコア入力で再計算"):
             st.session_state['target_score'] = val
             with st.spinner("計算中..."):
-                tuner_req = cal_min_chuna(val, coe)
-                c, r, prob, ok = expected_resources(tuple([0]*7), 0, val, tuner_req, tuple(coe))
-                
-                st.session_state['ave_chuna'] = c
-                st.session_state['res_c'] = c
-                st.session_state['res_r'] = r
-                st.session_state['res_b'] = 1 / prob if prob > 0 else INF
-                st.toast("計算完了")
-
-    st.divider()
+                min_c = cal_min_chuna(val, coe)
+                st.session_state['res_c'], st.session_state['res_r'], pr, _ = expected_resources(tuple([0]*7), 0, val, min_c, tuple(coe))
+                st.session_state['ave_chuna'] = st.session_state['res_c']
+                st.session_state['res_b'] = 1 / pr if pr > 0 else INF
     
-    # リソース消費量の表示
     if 'res_c' in st.session_state:
-        st.subheader("想定リソース消費量（期待値）")
-        st.caption("※元のアルゴリズムに基づき、record_listの値を正確に使用して算出しています。")
+        st.divider()
         m1, m2, m3 = st.columns(3)
         m1.metric("チュナ消費量", f"{int(st.session_state['res_c']):,}")
         m2.metric("レコード消費量", f"{int(st.session_state['res_r']):,}")
-        
-        b_val = st.session_state['res_b']
-        b_str = f"{b_val:.1f} 個" if b_val < 10000 else "∞"
-        m3.metric("音骸素体消費量", b_str)
-    else:
-        st.caption("※計算ボタンを押すとここに消費量が表示されます")
+        m3.metric("音骸素体消費量", f"{st.session_state['res_b']:.1f} 個" if st.session_state['res_b'] < 10000 else "∞")
 
-
-# --- TAB 2: 続行判定 ---
+# --- Tab 2 ---
 with tab2:
     st.header("強化続行・撤退の判定")
-    st.markdown(f"目標スコア **{st.session_state['target_score']:.2f}** を目指す場合の判定を行います。")
+    st.markdown(f"目標スコア **{int(st.session_state['target_score'])}** を目指す場合の判定を行います。")
     
-    col_input, col_res = st.columns([1, 1])
-    
-    with col_input:
-        st.subheader("現在の音骸ステータス")
-        current_times = st.slider("現在のサブステ開放数（強化回数）", 0, 4, 1)
-        current_sub = [0.0] * 7
-        active_indices = [i for i, c in enumerate(coe) if c > 0]
+    col_in, col_re = st.columns([1, 1])
+    with col_in:
+        st.subheader("現在のステータス")
+        times = st.slider("現在のサブステ開放数", 0, 4, 1)
+        sub = render_substat_inputs(current_sub_names, subst_list, coe, "tab2")
         
-        input_count = 0
-        for i in active_indices:
-            vals = [0.0] + subst_list[i]
-            val = st.select_slider(
-                f"{current_sub_names[i]}",
-                options=vals,
-                key=f"slider_{i}"
-            )
-            current_sub[i] = val
-            if val > 0: input_count += 1
-            
-        if input_count > current_times:
-            st.error(f"入力数({input_count})が開放数({current_times})を超えています。")
-
-    with col_res:
+    with col_re:
         st.subheader("判定結果")
-        current_score = cal_score_now(current_sub, coe)
-        st.metric("現在のスコア", f"{current_score:.2f}")
+        sc_now = cal_score_now(sub, coe)
+        st.metric("現在のスコア", f"{sc_now:.2f}")
         
         if st.button("判定実行", type="primary"):
-            if input_count > current_times:
-                st.error("入力値を確認してください")
-            else:
-                cost, msg = judge_continue(
-                    st.session_state['target_score'],
-                    current_times,
-                    current_sub,
-                    st.session_state['ave_chuna'],
-                    coe
-                )
-                
-                if msg == "強化推奨":
-                    st.success(f"## {msg}")
-                    st.write("このまま強化するのが期待値的に**お得**です。")
-                elif "続行可能" in msg:
-                    st.warning(f"## {msg}")
-                else:
-                    st.error(f"## {msg}")
-                    st.write("これ以上強化すると期待値的に**損**です。")
-                
-                if cost < INF:
-                    diff = st.session_state['ave_chuna'] - cost
-                    st.write(f"ゴールまでの期待コスト: **{int(cost)}** チュナ")
-                    if diff > 0:
-                        st.caption(f"新品より {int(diff)} チュナ節約の見込み")
+            cst, msg = judge_continue(st.session_state['target_score'], times, sub, st.session_state['ave_chuna'], coe)
+            if msg == "強化推奨": st.success(f"## {msg}")
+            elif "続行可能" in msg: st.warning(f"## {msg}")
+            else: st.error(f"## {msg}")
+            
+            if cst < INF: st.write(f"ゴールまでの期待コスト: **{int(cst)}** チュナ")
 
-
-# --- TAB 3: 最小ライン一覧 (修正完了版) ---
+# --- Tab 3 ---
 with tab3:
     st.header("これ以上強化していい最小ライン一覧")
-    st.info("「このサブステが付いたら強化を続けても良い」という**最低ライン**の組み合わせを表示します。")
-    st.caption("※より強力な上位互換（例：クリ6.3でOKな場合のクリ10.5など）は、この表では省略されます。")
+    search_t = st.selectbox("検索する強化回数", [1, 2, 3, 4])
+    
+    if st.button("一覧を生成"):
+        with st.spinner("探索中..."):
+            res = judge_continue_all(st.session_state['target_score'], search_t, st.session_state['ave_chuna'], coe)
+            
+            if not res:
+                st.warning("条件を満たす組み合わせがありません")
+            else:
+                rows = []
+                for r in res:
+                    row = {current_sub_names[i]: r["substatus"][i] for i in range(7)}
+                    row.update({"スコア": r["score"], "消費チュナ": r["chuna"]})
+                    rows.append(row)
+                
+                df = pd.DataFrame(rows)
+                act_cols = [n for i, n in enumerate(current_sub_names) if coe[i] > 0]
+                df_disp = df[act_cols + ["スコア", "消費チュナ"]].sort_values("スコア")
+                
+                fmt = {c: st.column_config.NumberColumn(format="%.1f") for c in act_cols+["スコア"]}
+                fmt["消費チュナ"] = st.column_config.NumberColumn(format="%d")
+                
+                st.dataframe(
+                    df_disp.style.map(style_zeros),
+                    column_config=fmt,
+                    use_container_width=True,
+                    hide_index=True
+                )
 
-    if 'target_score' not in st.session_state:
-        st.error("先にタブ①で目標スコアを計算してください")
+# --- Tab 4 ---
+with tab4:
+    st.header("① 音骸スコア計算（単体）")
+    sub_s = render_substat_inputs(current_sub_names, subst_list, coe, "tab4")
+    
+    st.divider()
+    if sum(1 for v in sub_s if v > 0) > 5:
+        st.error("有効サブステが多すぎます")
     else:
-        search_times = st.selectbox("検索する強化回数", [1, 2, 3, 4], help="回数が多いと計算に時間がかかります")
+        sc_s = cal_score_now(sub_s, coe)
+        st.metric("合計スコア", f"{sc_s:.2f}")
         
-        if st.button("一覧を生成"):
-            with st.spinner("探索中..."):
-                valid_rows = []
-                ave = st.session_state['ave_chuna']
-                score_target = st.session_state['target_score']
-                
-                valid_idx = [i for i, c in enumerate(coe) if c > 0]
-                
-                # --- 1. 全探索 (指定された強化回数分の数値を埋める) ---
-                def search_combos(idx_in_valid, current_state, count):
-                    # 規定回数分埋まったら判定
-                    if count == 0:
-                        cost, msg = judge_continue(score_target, search_times, current_state, ave, coe)
-                        if "非推奨" not in msg:
-                            row = {}
-                            row["_raw_state"] = list(current_state) 
-                            row["スコア"] = cal_score_now(current_state, coe)
-                            row["消費チュナ"] = int(cost)
-                            for i in range(7):
-                                row[current_sub_names[i]] = current_state[i]
-                            valid_rows.append(row)
-                        return
+        df_s = pd.DataFrame({
+            "サブステ": current_sub_names,
+            "値": sub_s,
+            "スコア寄与": [sub_s[i]*coe[i] for i in range(7)]
+        })
+        st.dataframe(df_s[df_s["値"]>0], use_container_width=True, hide_index=True)
+        
+        csv = df_s.to_csv(index=False).encode("utf-8-sig")
+        st.download_button("📥 結果をCSVでダウンロード", csv, "score.csv", "text/csv")
 
-                    # インデックス切れ
-                    if idx_in_valid >= len(valid_idx):
-                        return
+# --- Tab 5 ---
+with tab5:
+    st.subheader("② 5連音骸スコア管理")
+    echo_labels = ["コスト4", "コスト3(A)", "コスト3(B)", "コスト1(A)", "コスト1(B)"]
+    all_stats_dict = {name: [0.0] * 5 for name in current_sub_names if coe[current_sub_names.index(name)] > 0}
+    
+    for echo_idx, label in enumerate(echo_labels):
+        with st.expander(f"{label} の入力", expanded=(echo_idx==0)):
+            sub_inputs = render_substat_inputs(current_sub_names, subst_list, coe, f"tab5_{echo_idx}")
+            for i, val in enumerate(sub_inputs):
+                if coe[i] > 0:
+                    all_stats_dict[current_sub_names[i]][echo_idx] = val
 
-                    real_idx = valid_idx[idx_in_valid]
-                    
-                    # 1. このサブステ種類を選ばない（スキップ）
-                    search_combos(idx_in_valid + 1, list(current_state), count)
-                    
-                    # 2. このサブステ種類を選ぶ（値を入れる）
-                    #    ※ここで0は選ばない (countを消費するのに値が0だと意味が変わるため)
-                    for val in subst_list[real_idx]:
-                        if val > 0:
-                            new_state = list(current_state)
-                            new_state[real_idx] = val
-                            # 次のサブステへ（重複なし前提）
-                            search_combos(idx_in_valid + 1, new_state, count - 1)
-
-                search_combos(0, [0.0]*7, search_times)
-                
-                if not valid_rows:
-                    st.warning("条件を満たす組み合わせが見つかりませんでした。（すべて非推奨です）")
-                else:
-                    df = pd.DataFrame(valid_rows)
-                    
-                    # --- 2. フィルタリング (上位互換の削除) ---
-                    # スコア順に並べて、「より弱い構成でOKなら、強い構成はリストから消す」
-                    df = df.sort_values("スコア")
-                    final_indices = []
-                    rows_data = df.to_dict('records')
-                    active_indices = [i for i, c in enumerate(coe) if c > 0]
-                    
-                    for i, current in enumerate(rows_data):
-                        is_redundant = False
-                        current_state = current["_raw_state"]
-                        
-                        for kept_idx in final_indices:
-                            kept = rows_data[kept_idx]
-                            kept_state = kept["_raw_state"]
-                            
-                            # 条件: すべての有効ステータスにおいて kept <= current
-                            # 値が0の部分も含めて「以下」であれば、keptが下位互換（最小ライン）となる
-                            # 例: kept=[クリ6.3, 他0], current=[クリ6.3, クリダメ12.6]
-                            #     6.3<=6.3 (OK), 0<=12.6 (OK) -> currentは冗長なので削除
-                            is_dominated = True
-                            for idx in active_indices:
-                                if kept_state[idx] > current_state[idx]:
-                                    is_dominated = False
-                                    break
-                            
-                            if is_dominated:
-                                is_redundant = True
-                                break
-                        
-                        if not is_redundant:
-                            final_indices.append(i)
-                            
-                    df_filtered = df.iloc[final_indices].reset_index(drop=True)
-                    
-                    # --- 3. 表示用整形 ---
-                    # カラム順序の固定
-                    base_order = [
-                        "クリティカル", "クリダメ", "攻撃力％",
-                        setting["d1_label"], setting["d2_label"],
-                        "共鳴効率", "攻撃実数"
-                    ]
-                    # 係数が0の列は除外
-                    active_cols = [name for i, name in enumerate(base_order) if coe[i] > 0]
-                    final_cols = active_cols + ["スコア", "消費チュナ"]
-                    
-                    df_display = df_filtered[final_cols]
-                    
-                    # --- 4. スタイルとフォーマット ---
-                    # 0の値を目立たなくするスタイル
-                    def style_zeros(val):
-                        if isinstance(val, (int, float)) and val == 0:
-                            return 'color: #d0d0d0; font-weight: 300;'
-                        return ''
-                    
-                    # 数値フォーマットの定義 (すべて小数点1桁)
-                    col_config = {}
-                    for col in active_cols:
-                        col_config[col] = st.column_config.NumberColumn(format="%.1f")
-                    col_config["スコア"] = st.column_config.NumberColumn(format="%.1f")
-                    col_config["消費チュナ"] = st.column_config.NumberColumn(format="%d") # チュナは整数
-
-                    st.write(f"**強化回数 {search_times}回目** の続行可能最小ライン ({len(df_display)}件)")
-                    
-                    st.dataframe(
-                        df_display.style.map(style_zeros),
-                        column_config=col_config,
-                        use_container_width=True,
-                        hide_index=True
-                    )
-
+    st.divider()
+    
+    df_v = pd.DataFrame(all_stats_dict, index=echo_labels).T
+    df_v.index.name = st.session_state.get("char_selector", "キャラクター")
+    df_v["合計"] = df_v.sum(axis=1)
+    
+    scores_incl, scores_excl = [], []
+    for label in echo_labels:
+        temp = [0.0]*7
+        for name in df_v.index:
+            idx = current_sub_names.index(name)
+            temp[idx] = df_v.at[name, label]
+        
+        si = cal_score_now(temp, coe)
+        scores_incl.append(si)
+        scores_excl.append(si - temp[5]*coe[5])
+        
+    df_v.loc["合計スコア(込)"] = scores_incl + [sum(scores_incl)]
+    df_v.loc["合計スコア(抜)"] = scores_excl + [sum(scores_excl)]
+    
+    st.subheader("スコア内訳表")
+    st.dataframe(df_v.style.format("{:.1f}").map(style_zeros), use_container_width=True)
+    st.caption("※「合計スコア(抜)」は、共鳴効率の係数分を差し引いたスコアです。")
 
 
     
