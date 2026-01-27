@@ -1029,9 +1029,13 @@ with tab2:
             if isinstance(val, (int, float)) and val == 0:
                 return 'color: #d0d0d0;'
             return ''
+        
+        numeric_cols = df_echo.columns.drop("部位")
             
         st.dataframe(
-            df_echo.style.format("{:.1f}").map(style_zeros),
+            df_echo.style
+            .format("{:.1f}", subset=numeric_cols) # subset引数で数値列のみを指定
+            .map(style_zeros),
             use_container_width=True,
             hide_index=True
         )
